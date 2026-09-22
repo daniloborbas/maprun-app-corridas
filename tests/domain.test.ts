@@ -174,3 +174,13 @@ describe('analytics', () => {
     expect(summarizeMetrics(rows, now).online).toBe(1);
   });
 });
+
+describe('capas geradas', () => {
+  it('cria URL determinística contextual para eventos sem imagem oficial', async () => {
+    const { buildGeneratedCoverUrl } = await import('@/features/events/images');
+    const url = buildGeneratedCoverUrl({slug:'corrida-serra', name:'Corrida Serra', city:'Itajubá', state:'MG', category:'trail', distances:['5 km']});
+    expect(url).toContain('/api/events/cover?');
+    expect(url).toContain('trail');
+    expect(url).toContain('Itajub%C3%A1');
+  });
+});

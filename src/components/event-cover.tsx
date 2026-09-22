@@ -27,7 +27,7 @@ export function EventCover({
       sizes={sizes}
       priority={priority}
       className="event-image"
-      unoptimized={src.startsWith('https://') && !src.startsWith('https://images.unsplash.com/')}
+      unoptimized={src.startsWith('https://') || src.startsWith('/api/events/cover')}
       onError={() => setFailed(true)}
     />
   );

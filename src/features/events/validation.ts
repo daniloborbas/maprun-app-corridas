@@ -59,7 +59,7 @@ export const eventSchema = z
             '/images/runners.jpg',
             '/images/mountains.jpg',
             '/images/mantiqueira-run.png',
-          ].includes(v) || isPublicHttpsUrl(v),
+          ].includes(v) || v.startsWith('/api/events/cover') || isPublicHttpsUrl(v),
         'Imagem deve ter URL HTTPS.',
       ),
     cover_image_source: z.enum(['official', 'generated', 'fallback']),
