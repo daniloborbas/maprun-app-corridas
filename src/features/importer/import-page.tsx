@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, Download, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { AdminEventForm } from '@/features/admin/event-form';
