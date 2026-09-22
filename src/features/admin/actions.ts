@@ -4,6 +4,7 @@ import { eventSchema } from '@/features/events/validation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 export async function saveAdminEvent(input: unknown): Promise<{ id?: string; error?: string }> {
+  const diagnosticId = crypto.randomUUID().slice(0, 8);
   const parsed = eventSchema.safeParse(input);
   if (!parsed.success)
     return {
@@ -24,15 +25,22 @@ export async function saveAdminEvent(input: unknown): Promise<{ id?: string; err
       };
     const { data, error } = await client.rpc('save_event', { payload: parsed.data });
     if (error) {
+      console.error('[MapRun save_event]', {
+        diagnosticId,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
       const detail = `${error.message || ''} ${error.details || ''}`.toLowerCase();
-      return { error: error.code === '23505' || detail.includes('slug') ? 'Este slug já está em uso.' : error.code === '23514' && detail.includes('latitude') ? 'Latitude e longitude devem ser preenchidas juntas.' : 'Não foi possível salvar o evento. Verifique os campos e tente novamente.' };
+      return { error: error.code === '23505' || detail.includes('slug') ? 'Este slug já está em uso.' : error.code === '23514' && detail.includes('latitude') ? 'Latitude e longitude devem ser preenchidas juntas.' : `Não foi possível salvar o evento. Código de diagnóstico: ${diagnosticId}` };
     }
     revalidatePath('/', 'layout');
     return { id: String(data) };
   } catch (error) {
     if (error instanceof Error && (error.message === 'Autenticação necessária.' || error.message.includes('Acesso restrito'))) return { error: 'Sua sessão não possui acesso administrativo. Entre novamente.' };
-    console.error('save_event failed', error instanceof Error ? { message: error.message } : { error: 'unknown' });
-    return { error: 'Não foi possível salvar o evento. Tente novamente.' };
+    console.error('[MapRun saveAdminEvent exception]', { diagnosticId, name: error instanceof Error ? error.name : 'Unknown', message: error instanceof Error ? error.message : String(error) });
+    return { error: `Não foi possível salvar o evento. Código de diagnóstico: ${diagnosticId}` };
   }
 }
 export async function deleteAdminEvent(id: string) {
