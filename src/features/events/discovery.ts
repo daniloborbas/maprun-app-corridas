@@ -26,7 +26,9 @@ export function isPastStart(startDate: string | null | undefined, now = new Date
 export function getDiscoveryFeed(events: RaceEvent[], filters: DiscoveryQuery = {}): RaceEvent[] {
   const now = filters.now || new Date();
   const query = normalizeText(filters.query || '');
-  return events
+  const unique = new Map<string, RaceEvent>();
+  for (const event of events) if (!unique.has(event.id)) unique.set(event.id, event);
+  return [...unique.values()]
     .filter((e) => e.status === 'published' && (filters.includePast || !isEnded(e, now)))
     .map((e) => ({
       ...e,

@@ -75,6 +75,11 @@ describe('dates, search and eligibility', () => {
       feed.map((e) => Date.parse(e.start_date)).sort((a, b) => a - b),
     );
   });
+  it('renders each event id at most once', () => {
+    const duplicate = { ...demoEvents[0] };
+    const feed = getDiscoveryFeed([duplicate, duplicate, ...demoEvents.slice(1)], { now });
+    expect(feed.filter((event) => event.id === duplicate.id)).toHaveLength(1);
+  });
   it('finds cities without accents and combines distance/category filters', () => {
     expect(getDiscoveryFeed(demoEvents, { now, query: 'itajuba' })).toHaveLength(2);
     const results = getDiscoveryFeed(demoEvents, { now, distance: 21, category: 'trail' });

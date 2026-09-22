@@ -17,8 +17,9 @@ export async function listEvents(): Promise<RaceEvent[]> {
   const { data, error } = await client
     .from('events')
     .select(selection)
-    .in('status', ['published', 'cancelled', 'finished'])
+    .eq('status', 'published')
     .is('deleted_at', null)
+    .gte('start_date', new Date().toISOString())
     .order('start_date');
   if (error) throw new Error('Não foi possível carregar as corridas. Tente novamente.');
   return (data as (RaceEvent & { is_demo?: boolean })[]).map(normalizeRecord);
@@ -30,7 +31,7 @@ export async function getEventBySlug(slug: string): Promise<RaceEvent | null> {
     .from('events')
     .select(selection)
     .eq('slug', slug)
-    .in('status', ['published', 'cancelled', 'finished'])
+    .eq('status', 'published')
     .is('deleted_at', null)
     .maybeSingle();
   if (error) throw new Error('Não foi possível carregar a corrida.');
