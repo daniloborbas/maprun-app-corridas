@@ -7,7 +7,7 @@ import type { RaceEvent, EventDistance } from '@/features/events/types';
 export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 const toLocal = (v?: string | null) =>
   v ? new Date(new Date(v).getTime() - 3 * 3600000).toISOString().slice(0, 16) : '';
-export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manual' }: { event?: RaceEvent; forceDraft?: boolean; sourceMethod?: string }) {
+export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manual' }: { event?: RaceEvent; forceDraft?: boolean | 'finished'; sourceMethod?: string }) {
   const router = useRouter();
   const [distances, setDistances] = useState<EventDistance[]>(
     event?.event_distances?.map((distance) => ({
@@ -73,7 +73,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       cover_image_source: text('cover_image_source'),
       has_usable_official_image: data.has('has_usable_official_image'),
       short_tagline: text('short_tagline'),
-      status: forceDraft ? 'draft' : text('status'),
+      status: forceDraft === 'finished' ? 'finished' : forceDraft ? 'draft' : text('status'),
       organizer_verified: data.has('organizer_verified'),
       event_distances: distances.map((d, i) => ({ ...d, order_index: i })),
       source_name: sourceMethod === 'url' ? 'Importação por URL' : text('source_name'),

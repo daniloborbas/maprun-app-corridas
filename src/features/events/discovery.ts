@@ -20,6 +20,9 @@ export function isEnded(event: RaceEvent, now = new Date()) {
     new Date(event.end_date || event.start_date).getTime() < now.getTime()
   );
 }
+export function isPastStart(startDate: string | null | undefined, now = new Date()) {
+  return Boolean(startDate) && Date.parse(startDate!) < now.getTime();
+}
 export function getDiscoveryFeed(events: RaceEvent[], filters: DiscoveryQuery = {}): RaceEvent[] {
   const now = filters.now || new Date();
   const query = normalizeText(filters.query || '');
