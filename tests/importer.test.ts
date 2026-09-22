@@ -11,3 +11,16 @@ describe('importador determinístico', () => {
   it('mescla campos ausentes e preserva as duas fontes', () => { const a=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Prova","image":"https://a/img.jpg"}</script>','https://a.test'); const b=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","startDate":"2026-10-10","location":{"address":{"addressLocality":"Itajubá","addressRegion":"MG"}}}</script>','https://b.test'); const merged=mergeEventImports(a,b); expect(merged.draft.city).toBe('Itajubá'); expect(merged.draft.startDate).toContain('2026-10-10'); expect(merged.sources).toEqual(['https://a.test','https://b.test']); });
   it('registra conflito de data sem escolher silenciosamente', () => { const a=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Prova","startDate":"2026-10-10"}</script>','https://a.test'); const b=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","startDate":"2026-10-11"}</script>','https://b.test'); expect(mergeEventImports(a,b).conflicts[0].field).toBe('startDate'); });
 });
+
+describe('conflitos multi-source', () => {
+  it('detecta divergência de inscrição, local e distâncias', () => {
+    const a=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Prova","location":{"name":"Praça A"},"offers":{"url":"https://a.test/inscricao"},"startDate":"2026-10-10"}</script>','https://a.test');
+    const b=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Prova","location":{"name":"Praça B"},"offers":{"url":"https://b.test/inscricao"},"startDate":"2026-10-11"}</script><p>5 km e 10 km</p>','https://b.test');
+    const fields=mergeEventImports(a,b).conflicts.map(c=>c.field);
+    expect(fields).toEqual(expect.arrayContaining(['startDate','venue','registrationUrl']));
+  });
+  it('mantém uma fonte sem conflitos', () => {
+    const a=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Prova","startDate":"2026-10-10"}</script>','https://a.test');
+    expect(mergeEventImports(a,a).conflicts).toHaveLength(0);
+  });
+});
