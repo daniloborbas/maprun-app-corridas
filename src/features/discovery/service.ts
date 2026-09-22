@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { htmlCalendarProvider } from './providers/html-calendar';
 import type { DiscoverySource, DiscoveryRunSummary } from './types';
 import { classifyDiscoveryCandidate } from './classifier';
+import { enrichDiscoveredEvent } from './enrichment';
 export const providers = [htmlCalendarProvider];
 export class DiscoveryAlreadyRunning extends Error {}
 const STALE_MS = 10 * 60_000;
@@ -24,7 +25,8 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   const runId = run.id;
   const started = Date.now();
   const errors: string[] = [];
-  let discovered=0, newCandidates=0, known=0, duplicates=0, failed=0, ignored=0, pastIgnored=0;
+  let discovered=0, newCandidates=0, known=0, duplicates=0, failed=0, ignored=0, pastIgnored=0, enriched=0, ready=0, incomplete=0, conflicts=0, enrichmentErrors=0;
+  let enrichmentBudget = 25;
   const finish = async () => {
     const status = failed===0 ? 'completed' : (newCandidates || discovered ? 'partial' : 'failed');
     const { error } = await client.from('discovery_runs').update({ status, finished_at:new Date().toISOString(), discovered_count:discovered, new_count:newCandidates, duplicate_count:duplicates, error_count:failed, error_details:errors }).eq('id',runId);
@@ -54,7 +56,25 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
           const { data: possible, error: eventError } = await client.from('events').select('id').ilike('name', `%${candidate.name.slice(0,40)}%`).limit(1);
           if (eventError) throw eventError;
           if (possible?.[0]) { candidate.status='duplicate'; candidate.duplicate_event_id=possible[0].id; duplicates++; }
-          const { error: insertError } = await client.from('discovered_events').insert(candidate);
+          let enrichedCandidate = candidate;
+          let quality_status: 'ready'|'incomplete'|'conflict' = 'incomplete';
+          if (enrichmentBudget > 0) {
+            enrichmentBudget--;
+            try {
+              const result = await enrichDiscoveredEvent(candidate);
+              if (result.past) { pastIgnored++; continue; }
+              enrichedCandidate = { ...candidate, ...result.candidate };
+              quality_status = result.qualityStatus;
+              enriched++;
+              if (quality_status === 'ready') ready++;
+              else if (quality_status === 'conflict') conflicts++;
+              else incomplete++;
+            } catch {
+              enrichmentErrors++;
+              errors.push(`${source.name}: enriquecimento indisponível`);
+            }
+          }
+          const { error: insertError } = await client.from('discovered_events').insert({ ...enrichedCandidate, quality_status });
           if (insertError) throw insertError;
           newCandidates++;
         }
@@ -73,7 +93,11 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   } finally {
     await finish();
   }
-  const summary = { discovered, newCandidates, known, duplicates, errors:failed, sources:sources.length, ignored, pastIgnored };
+  const summary = { discovered, newCandidates, known, duplicates, errors:failed, sources:sources.length, ignored, pastIgnored, enriched, ready, incomplete, conflicts, enrichmentErrors };
   console.info('[MapRun discovery classification]', summary);
   return summary;
 }
+
+
+
+
