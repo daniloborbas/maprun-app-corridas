@@ -7,10 +7,11 @@ export async function saveAdminEvent(input: unknown, attemptId?: string): Promis
   const diagnosticId = attemptId && /^[a-z0-9]{8}$/i.test(attemptId) ? attemptId : crypto.randomUUID().slice(0, 8);
   console.error('[MapRun event-save:start]', { diagnosticId });
   const parsed = eventSchema.safeParse(input);
-  if (!parsed.success)
-    return {
-      error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' · '),
-    };
+  if (!parsed.success) {
+    const validationMessage = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' · ');
+    console.error('[MapRun event-save:validation-failed]', { diagnosticId, issues: validationMessage });
+    return { error: validationMessage, diagnosticId };
+  }
   console.error('[MapRun event-save:validated]', { diagnosticId });
   try {
     const { client } = await requireAdmin();
