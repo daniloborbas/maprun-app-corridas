@@ -42,7 +42,9 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     for (const key of ['registration_url', 'official_url', 'regulation_url']) if (text(key) && !/^https:\/\//i.test(text(key))) errors[key] = 'Informe uma URL HTTPS válida.';
     setFieldErrors(errors);
     if (Object.keys(errors).length) { setMessage('Revise os campos destacados abaixo.'); setBusy(false); const first = e.currentTarget.elements.namedItem(Object.keys(errors)[0]) as HTMLElement | null; first?.focus(); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
-    const result = await saveAdminEvent({
+    let result: Awaited<ReturnType<typeof saveAdminEvent>>;
+    try {
+      result = await saveAdminEvent({
       id: event?.id && event.id.length > 10 ? event.id : undefined,
       name: text('name'),
       slug: text('slug') || slugify(text('name')),
@@ -73,7 +75,12 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       source_name: sourceMethod === 'url' ? 'Importação por URL' : text('source_name'),
       source_url: text('source_url'),
       source_method: sourceMethod,
-    });
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível salvar agora. Tente novamente.');
+      setBusy(false);
+      return;
+    }
     setBusy(false);
     if (result.error) { const next = { ...fieldErrors }; if (result.error.includes('slug')) next.slug = result.error; else if (result.error.includes('coordenadas')) { next.latitude = result.error; next.longitude = result.error; } setFieldErrors(next); const safe = result.error.startsWith('Já existe') || result.error.startsWith('Este slug') || result.error.startsWith('Sua sessão') || result.error.startsWith('A categoria') || result.error.startsWith('Não foi possível salvar uma'); setMessage(safe ? result.error : 'Não foi possível salvar agora. Tente novamente.'); }
     else {
