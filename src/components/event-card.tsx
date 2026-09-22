@@ -36,7 +36,7 @@ export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: 
             : 'ENCONTRE SUA PRÓXIMA CORRIDA'}
         </span>
         {event.sponsored && <span className="sponsored-badge">Patrocinado · exemplo</span>}
-        <p>{sanitizeEventText(event.short_tagline)}</p>
+        {sanitizeEventText(event.short_description) && <p>{sanitizeEventText(event.short_description)}</p>}
         <span className="short-rule" />
       </div>
       {event.distance_km !== undefined && (

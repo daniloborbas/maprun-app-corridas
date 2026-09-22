@@ -222,10 +222,12 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
         <label className="wide">
           Descrição curta
           <input name="short_description" maxLength={240} defaultValue={event?.short_description} />
+          <small>Exibida nos cards e no feed.</small>
         </label>
         <label className="wide">
           Descrição completa
           <textarea name="description" defaultValue={event?.description} />
+          <small>Exibida na página completa da corrida.</small>
         </label>
         <fieldset className="wide">
           <legend>Distâncias e modalidades</legend>
