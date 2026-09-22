@@ -43,6 +43,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     setFieldErrors(errors);
     if (Object.keys(errors).length) { setMessage('Revise os campos destacados abaixo.'); setBusy(false); const first = e.currentTarget.elements.namedItem(Object.keys(errors)[0]) as HTMLElement | null; first?.focus(); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     let result: Awaited<ReturnType<typeof saveAdminEvent>>;
+    const attemptId = crypto.randomUUID().slice(0, 8);
     try {
       result = await saveAdminEvent({
       id: event?.id && event.id.length > 10 ? event.id : undefined,
@@ -75,9 +76,10 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       source_name: sourceMethod === 'url' ? 'Importação por URL' : text('source_name'),
       source_url: text('source_url'),
       source_method: sourceMethod,
-      });
+      }, attemptId);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Não foi possível salvar agora. Tente novamente.');
+      console.error('[MapRun event-save client]', { attemptId, name: error instanceof Error ? error.name : 'Unknown', message: error instanceof Error ? error.message : String(error) });
+      setMessage(`Falha ao comunicar com o servidor. Código de diagnóstico: ${attemptId}`);
       return;
     } finally {
       setBusy(false);

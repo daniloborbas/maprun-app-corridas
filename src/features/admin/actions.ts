@@ -3,8 +3,8 @@ import { requireAdmin } from '@/lib/supabase/server';
 import { eventSchema } from '@/features/events/validation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-export async function saveAdminEvent(input: unknown): Promise<{ id?: string; error?: string; diagnosticId?: string }> {
-  const diagnosticId = crypto.randomUUID().slice(0, 8);
+export async function saveAdminEvent(input: unknown, attemptId?: string): Promise<{ id?: string; error?: string; diagnosticId?: string }> {
+  const diagnosticId = attemptId && /^[a-z0-9]{8}$/i.test(attemptId) ? attemptId : crypto.randomUUID().slice(0, 8);
   console.error('[MapRun event-save:start]', { diagnosticId });
   const parsed = eventSchema.safeParse(input);
   if (!parsed.success)
