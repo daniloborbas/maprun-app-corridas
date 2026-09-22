@@ -10,7 +10,16 @@ import { eventSchema, isPublicHttpsUrl } from '@/features/events/validation';
 import { duplicateKey, normalizeImportedEvent } from '@/integrations/events/normalize';
 import { analyticsSchema } from '@/features/analytics/schema';
 import { summarizeMetrics } from '@/features/admin/metrics';
+import { resolveEventImage } from '@/features/events/images';
 const now = new Date('2026-09-21T12:00:00Z');
+describe('event images', () => {
+  it('keeps official images and deterministically varies fallbacks', () => {
+    const base = demoEvents[0];
+    expect(resolveEventImage({ ...base, cover_image_url: 'https://cdn.example.com/run.jpg', has_usable_official_image: true })).toBe('https://cdn.example.com/run.jpg');
+    expect(resolveEventImage({ ...base, id: 'same', cover_image_url: '[object Object]', has_usable_official_image: false })).toBe(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false }));
+    expect(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false })).toBe(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false }));
+  });
+});
 describe('geographic discovery', () => {
   it('returns zero for equal coordinates and handles antipodes', () => {
     expect(distanceBetween({ latitude: 0, longitude: 0 }, { latitude: 0, longitude: 0 })).toBe(0);

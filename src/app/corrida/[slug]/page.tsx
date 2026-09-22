@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getEventBySlug } from '@/features/events/repository';
 import { EventDetails } from '@/components/event-details';
 import { siteUrl } from '@/lib/config';
+import { resolveEventImage } from '@/features/events/images';
 export async function generateMetadata({
   params,
 }: {
@@ -19,7 +20,7 @@ export async function generateMetadata({
       title: event.name,
       description: event.short_description,
       url: `/corrida/${event.slug}`,
-      images: [new URL(event.cover_image_url || '/images/runners.jpg', siteUrl).href],
+      images: [new URL(resolveEventImage(event), siteUrl).href],
     },
   };
 }
@@ -38,7 +39,7 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
         ? 'https://schema.org/EventCancelled'
         : 'https://schema.org/EventScheduled',
     eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
-    image: new URL(event.cover_image_url, siteUrl).href,
+    image: new URL(resolveEventImage(event), siteUrl).href,
     url: `${siteUrl}/corrida/${event.slug}`,
     location: {
       '@type': 'Place',
