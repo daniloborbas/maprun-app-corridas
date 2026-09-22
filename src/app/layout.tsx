@@ -3,7 +3,10 @@ import { AppProvider } from '@/components/app-provider';
 import { Navigation } from '@/components/navigation';
 import { db } from '@/lib/supabase/server';
 import { demoMode, siteUrl } from '@/lib/config';
+import { Inter, Poppins } from 'next/font/google';
 import './globals.css';
+const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-sans', display: 'swap' });
+const poppins = Poppins({ subsets: ['latin'], weight: ['600', '700'], variable: '--font-display', display: 'swap' });
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -35,7 +38,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       : [null, null, null];
   return (
     <html lang="pt-BR">
-      <body>
+      <body className={`${inter.variable} ${poppins.variable}`}>
         <AppProvider
           user={user ? { id: user.id, name: profile?.data?.name || '' } : null}
           demo={demoMode}

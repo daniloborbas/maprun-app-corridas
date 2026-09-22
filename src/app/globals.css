@@ -1,7 +1,6 @@
 @import 'tailwindcss';
 @theme inline {
   --color-brand: #14d160;
-  --font-sans: Arial, Helvetica, sans-serif;
 }
 :root {
   --green: #14d160;
@@ -27,7 +26,7 @@ body {
   margin: 0;
   background: #fff;
   color: var(--ink);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), sans-serif;
   font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -83,6 +82,7 @@ p {
 h1,
 h2,
 h3 {
+  font-family: var(--font-display), sans-serif;
   line-height: 1.15;
   letter-spacing: -0.035em;
 }
@@ -164,6 +164,32 @@ legend {
   font-weight: 600;
   font-size: 15px;
   transition: background 0.2s;
+}
+.button,
+input,
+select,
+textarea,
+label,
+.text-button,
+.category-tabs button,
+.details-button {
+  font-family: var(--font-sans), sans-serif;
+}
+.brand,
+.discovery-intro h1,
+.mobile-discovery-title h1,
+.card-content h2,
+.details-content > h1,
+.section-title {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 600;
+}
+.brand { font-weight: 700; }
+.eyebrow,
+.category-caption,
+.admin-table th {
+  font-family: var(--font-sans), sans-serif;
+  font-weight: 600;
 }
 .button:hover {
   background: var(--green-dark);
