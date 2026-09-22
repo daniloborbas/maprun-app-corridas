@@ -63,8 +63,8 @@ begin
   delete from public.event_sources where event_id = eid;
   if jsonb_typeof(payload->'event_sources') = 'array' then
     for item in select value from jsonb_array_elements(payload->'event_sources') loop
-      if not exists (select 1 from public.event_sources where event_id=eid and lower(regexp_replace(regexp_replace(source_url, '[?#].*$', ''), '/$', '')) = lower(regexp_replace(regexp_replace(coalesce(item.value->>'source_url',''), '[?#].*$', ''), '/$', ''))) then
-        insert into public.event_sources(event_id, source_name, source_url, import_method, last_verified_at) values(eid, coalesce(nullif(item.value->>'source_name',''),'Cadastro manual'), coalesce(item.value->>'source_url',''), coalesce(nullif(item.value->>'source_method',''),'manual'), now());
+      if not exists (select 1 from public.event_sources where event_id=eid and lower(regexp_replace(regexp_replace(source_url, '[?#].*$', ''), '/$', '')) = lower(regexp_replace(regexp_replace(coalesce(item->>'source_url',''), '[?#].*$', ''), '/$', ''))) then
+        insert into public.event_sources(event_id, source_name, source_url, import_method, last_verified_at) values(eid, coalesce(nullif(item->>'source_name',''),'Cadastro manual'), coalesce(item->>'source_url',''), coalesce(nullif(item->>'source_method',''),'manual'), now());
       end if;
     end loop;
   else
@@ -76,5 +76,6 @@ $$;
 
 revoke all on function public.save_event(jsonb) from public, anon;
 grant execute on function public.save_event(jsonb) to authenticated;
+
 
 
