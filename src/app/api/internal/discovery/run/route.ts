@@ -2,4 +2,23 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabase/server';
 import { DiscoveryAlreadyRunning, runDiscovery } from '@/features/discovery/service';
 import type { DiscoverySource } from '@/features/discovery/types';
-export async function POST(request:Request){const secret=process.env.CRON_SECRET;if(!secret||request.headers.get('authorization')!==`Bearer ${secret}`)return NextResponse.json({error:'Não autorizado.'},{status:401});const client=await db();if(!client)return NextResponse.json({error:'Banco indisponível.'},{status:503});const {data,error}=await client.from('discovery_sources').select('*').eq('active',true);if(error)return NextResponse.json({error:'Não foi possível carregar as fontes.'},{status:503});try{return NextResponse.json({summary:await runDiscovery((data||[]) as DiscoverySource[])});}catch(error){if(error instanceof DiscoveryAlreadyRunning)return NextResponse.json({error:error.message},{status:409});return NextResponse.json({error:'Falha na descoberta.'},{status:500});}}
+
+async function run(request: Request) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`)
+    return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+  const client = await db();
+  if (!client) return NextResponse.json({ error: 'Banco indisponível.' }, { status: 503 });
+  const { data, error } = await client.from('discovery_sources').select('*').eq('active', true);
+  if (error) return NextResponse.json({ error: 'Não foi possível carregar as fontes.' }, { status: 503 });
+  try {
+    return NextResponse.json({ summary: await runDiscovery((data || []) as DiscoverySource[]) });
+  } catch (error) {
+    if (error instanceof DiscoveryAlreadyRunning)
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    return NextResponse.json({ error: 'Falha na descoberta.' }, { status: 500 });
+  }
+}
+
+export const GET = run;
+export const POST = run;

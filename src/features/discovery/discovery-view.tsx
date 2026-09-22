@@ -8,6 +8,7 @@ import { useApp } from '@/components/app-provider';
 import { LocationPicker } from '@/features/location/location-picker';
 import { DiscoveryEventCard } from '@/components/event-card';
 import { EmptyState } from '@/components/empty-state';
+import styles from './discovery-empty.module.css';
 export function DiscoveryView({ events, personalizedIds=[], hasPreferences=false }: { events: RaceEvent[]; personalizedIds?: string[]; hasPreferences?: boolean }) {
   const { location } = useApp();
   const [category, setCategory] = useState(''),
@@ -50,7 +51,30 @@ export function DiscoveryView({ events, personalizedIds=[], hasPreferences=false
         </Link>
       </aside>
       <section className="discovery-main" aria-label="Descobrir corridas">
-        {category===''&&<section className="profile-section" aria-label="Para você"><h2>Novidades para você</h2>{personalized.length?<div className="discovery-feed">{personalized.slice(0,2).map((event,index)=><DiscoveryEventCard key={event.id} event={event} index={index}/>)}</div>:<p>{hasPreferences?'Ainda não encontramos corridas com suas preferências por perto. Explore todas as corridas.':<Link href="/perfil" className="text-button">Conte o que você gosta de correr</Link>}</p>}</section>}
+        {category === '' && (
+          <section
+            className={!personalized.length && !hasPreferences ? styles.empty : 'profile-section'}
+            aria-label="Para você"
+          >
+            <h2>Novidades para você</h2>
+            {personalized.length ? (
+              <div className="discovery-feed">
+                {personalized.slice(0, 2).map((event, index) => (
+                  <DiscoveryEventCard key={event.id} event={event} index={index} />
+                ))}
+              </div>
+            ) : hasPreferences ? (
+              <p>Ainda não encontramos corridas com suas preferências por perto. Explore todas as corridas.</p>
+            ) : (
+              <>
+                <p>Personalize suas preferências e descubra corridas que combinam com você.</p>
+                <Link href="/perfil" className={styles.link}>
+                  Ajustar preferências <span aria-hidden="true">→</span>
+                </Link>
+              </>
+            )}
+          </section>
+        )}
         <div className="mobile-discovery-title">
           <h1>Descobrir</h1>
           <LocationPicker />
