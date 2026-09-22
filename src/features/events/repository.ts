@@ -3,7 +3,7 @@ import { db } from '@/lib/supabase/server';
 import { demoMode } from '@/lib/config';
 import { demoEvents } from './fixtures';
 import type { RaceEvent } from './types';
-const selection = '*, event_distances(*), event_sources(source_name,source_url,last_verified_at)';
+const selection = '*, event_distances(*), event_sources(source_name,source_url,import_method,last_verified_at)';
 function normalizeRecord(row: RaceEvent & { is_demo?: boolean }): RaceEvent {
   return {
     ...row,
