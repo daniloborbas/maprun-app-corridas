@@ -18,6 +18,8 @@ const externalUrl = z
   .string()
   .max(2000)
   .refine((v) => v === '' || isPublicHttpsUrl(v), 'Utilize uma URL pública HTTPS.');
+export const eventSourceSchema = z.object({ source_name: z.string().min(1).max(150), source_url: externalUrl, source_method: z.enum(['manual', 'url', 'discovery']).default('manual') });
+export function normalizeSourceUrl(value: string) { try { const url = new URL(value); url.hash = ''; for (const key of ['utm_source','utm_medium','utm_campaign','utm_content','utm_term']) url.searchParams.delete(key); url.pathname = url.pathname.replace(/\/$/, '') || '/'; return url.toString(); } catch { return value.trim(); } }
 export const eventSchema = z
   .object({
     id: z.uuid().optional(),
@@ -80,6 +82,7 @@ export const eventSchema = z
       .max(30),
     source_name: z.string().max(150).default('Cadastro manual'),
     source_url: externalUrl.default(''),
+    event_sources: z.array(eventSourceSchema).max(10).optional(),
   })
   .refine((v) => (v.latitude === null) === (v.longitude === null), 'Preencha as duas coordenadas.')
   .refine(
