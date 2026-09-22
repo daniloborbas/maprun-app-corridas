@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { usePathname, useRouter } from 'next/navigation';
 import { X, ArrowRight, Mail } from 'lucide-react';
 import { sendLoginLink } from '@/features/auth/actions';
+import { browserDb } from '@/lib/supabase/browser';
 import { setEventInteraction } from '@/features/events/actions';
 import { trackAnalyticsEvent } from '@/features/analytics/client';
 import type { Coordinates } from '@/features/events/types';
@@ -146,6 +147,19 @@ export function AppProvider({
     setConsent(value);
     if (value === 'yes') trackAnalyticsEvent('page_view');
   }
+  async function signInWithGoogle() {
+    const client = browserDb();
+    if (!client) {
+      setLoginMessage('O login estará disponível quando o Supabase for conectado.');
+      return;
+    }
+    const target = pathname.startsWith('/') && !pathname.startsWith('//') && !pathname.includes('\\') ? pathname : '/perfil';
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(target)}` },
+    });
+    if (error) setLoginMessage('Não foi possível iniciar o login com Google. Tente novamente.');
+  }
   return (
     <AppContext.Provider
       value={{
@@ -218,6 +232,10 @@ export function AppProvider({
               em um só lugar.
             </h2>
             <p>Entre com seu e-mail para salvar provas e marcar onde você vai correr.</p>
+            <button type="button" className="button secondary full" onClick={() => void signInWithGoogle()}>
+              Continuar com Google
+            </button>
+            <div className="login-divider" aria-hidden="true"><span>ou</span></div>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();

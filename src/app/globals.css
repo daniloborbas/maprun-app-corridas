@@ -175,6 +175,21 @@ legend {
 .full {
   width: 100%;
 }
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  color: #819087;
+  font-size: 13px;
+}
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e1e8e3;
+}
 .text-button {
   display: inline-flex;
   align-items: center;
