@@ -1,0 +1,4 @@
+import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/supabase/server';
+import { z } from 'zod';
+export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){let access;try{access=await requireAdmin();}catch{return NextResponse.json({error:'Acesso restrito.'},{status:403});}const id=(await params).id;const body=await request.json().catch(()=>({}));const status=z.enum(['ignored','duplicate']).safeParse(body.status);if(!z.uuid().safeParse(id).success||!status.success)return NextResponse.json({error:'Dados inválidos.'},{status:400});const {error}=await access.client.from('discovered_events').update({status:status.data,reviewed_at:new Date().toISOString(),reviewed_by:(await access.client.auth.getUser()).data.user?.id}).eq('id',id);return error?NextResponse.json({error:'Não foi possível atualizar.'},{status:503}):NextResponse.json({success:true});}

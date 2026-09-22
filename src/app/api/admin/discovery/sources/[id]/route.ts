@@ -1,0 +1,4 @@
+import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/supabase/server';
+import { assertSafeImportUrl } from '@/features/importer/url-import';
+export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){let access;try{access=await requireAdmin();}catch{return NextResponse.json({error:'Acesso restrito.'},{status:403});}const body=await request.json();if(body.base_url)try{await assertSafeImportUrl(body.base_url);}catch(e){return NextResponse.json({error:e instanceof Error?e.message:'URL inválida.'},{status:400});}const {id}=await params;const {data,error}=await access.client.from('discovery_sources').update({name:body.name,base_url:body.base_url,region:body.region,active:body.active}).eq('id',id).select().single();if(error)return NextResponse.json({error:'Não foi possível atualizar a fonte.'},{status:400});return NextResponse.json({source:data});}

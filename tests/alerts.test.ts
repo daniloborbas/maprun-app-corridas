@@ -1,0 +1,3 @@
+import { describe,expect,it } from 'vitest'; import { matchEventsToPreferences } from '@/features/alerts/matching';
+const base={nearby_events_enabled:false,city_events_enabled:true,saved_event_reminders_enabled:false,preferred_radius_km:50,favorite_distances:[10],preferred_categories:['trail'],city:'Itajubá',state:'MG'};
+describe('alert matching',()=>{it('matches city, distance and category only for future events',()=>{expect(matchEventsToPreferences(base,[{start_date:'2099-01-01',city:'Itajubá',state:'MG',event_category:'trail',distances:[10]},{start_date:'2099-01-01',city:'Pouso Alegre',state:'MG',event_category:'trail',distances:[10]},{start_date:'2020-01-01',city:'Itajubá',state:'MG',event_category:'trail',distances:[10]}])).toHaveLength(1)});});

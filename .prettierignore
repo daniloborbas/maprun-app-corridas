@@ -1,0 +1,10 @@
+node_modules
+.next
+package-lock.json
+public/images
+public/icons
+test-results
+playwright-report
+next-env.d.ts
+AGENTS.md
+CLAUDE.md
