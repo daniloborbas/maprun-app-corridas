@@ -51,7 +51,7 @@ create policy profile_update on public.profiles for update using (id = auth.uid(
 -- Column grants prevent self-promotion even with a direct REST request.
 revoke all on public.profiles from anon, authenticated;
 grant select on public.profiles to authenticated;
-grant update(name,avatar_url,city,state,favorite_distances,preferred_categories,alerts_enabled,nearby_events_enabled,city_events_enabled,saved_event_reminders_enabled,preferred_radius_km,updated_at) on public.profiles to authenticated;
+grant update(name,avatar_url,city,state,favorite_distances,preferred_categories,updated_at) on public.profiles to authenticated;
 
 alter table public.events enable row level security;
 create policy public_events on public.events for select using ((status in ('published','finished','cancelled') and deleted_at is null) or public.is_admin());
