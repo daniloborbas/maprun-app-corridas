@@ -32,3 +32,21 @@ describe('imagem importada', () => {
     expect(draft.coverImageUrl).toBe('');
   });
 });
+
+describe('conteúdo editorial e imagens oficiais', () => {
+  it('gera descrições factuais sanitizadas a partir dos campos disponíveis', () => {
+    const draft=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Corrida Serra","startDate":"2026-10-18T07:00:00-03:00","location":{"address":{"addressLocality":"Itajubá","addressRegion":"MG"}},"organizer":{"name":"Equipe Serra"}}</script><p>5 km</p>','https://example.com/race');
+    expect(draft.shortDescription).toContain('Corrida Serra');
+    expect(draft.description).toContain('Itajubá - MG');
+    expect(draft.description).toContain('Equipe Serra');
+    expect(draft.description).not.toContain('<p>');
+  });
+  it('usa twitter:image quando og:image está ausente e ignora logos', () => {
+    const draft=extractEventMetadata('<meta name="twitter:image" content="https://cdn.example.com/race.jpg"><meta property="og:image" content="https://cdn.example.com/logo.png"><script type="application/ld+json">{"@type":"Event","name":"Prova"}</script>','https://example.com/race');
+    expect(draft.coverImageUrl).toBe('https://cdn.example.com/race.jpg');
+  });
+  it('não inventa fatos ausentes na descrição', () => {
+    const draft=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Prova"}</script>','https://example.com/race');
+    expect(draft.description).not.toMatch(/Itajubá|MG|R\$|inscri/i);
+  });
+});
