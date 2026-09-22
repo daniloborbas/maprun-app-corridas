@@ -24,3 +24,11 @@ describe('conflitos multi-source', () => {
     expect(mergeEventImports(a,a).conflicts).toHaveLength(0);
   });
 });
+
+
+describe('imagem importada', () => {
+  it('ignora valor de imagem que não é URL', () => {
+    const draft=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Prova","image":{"url":"objeto"}}</script>','https://example.com/x');
+    expect(draft.coverImageUrl).toBe('');
+  });
+});
