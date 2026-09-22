@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
 import { saveAdminEvent, deleteAdminEvent } from './actions';
 import type { RaceEvent, EventDistance } from '@/features/events/types';
+export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 const toLocal = (v?: string | null) =>
   v ? new Date(new Date(v).getTime() - 3 * 3600000).toISOString().slice(0, 16) : '';
 export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manual' }: { event?: RaceEvent; forceDraft?: boolean; sourceMethod?: string }) {
@@ -13,6 +14,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
   );
   const [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false),
+    [geocoding, setGeocoding] = useState(false),
     [deleteConfirm, setDeleteConfirm] = useState(false);
   const field = (name: string, label: string, value = '', type = 'text', required = false) => (
     <label>
@@ -30,7 +32,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     const result = await saveAdminEvent({
       id: event?.id && event.id.length > 10 ? event.id : undefined,
       name: text('name'),
-      slug: text('slug'),
+      slug: text('slug') || slugify(text('name')),
       short_description: text('short_description'),
       description: text('description'),
       start_date: `${text('start_date')}:00-03:00`,
@@ -66,6 +68,21 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       router.push('/admin/eventos');
       router.refresh();
     }
+  }
+  async function geocode(form: HTMLFormElement) {
+    const data = new FormData(form);
+    setGeocoding(true); setMessage('');
+    try {
+      const response = await fetch('/api/admin/geocode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: data.get('address'), venue: data.get('venue'), city: data.get('city'), state: data.get('state') }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Não foi possível localizar o endereço.');
+      if (!result.results?.length) { setMessage('Não encontramos as coordenadas automaticamente. Você pode salvar o evento e revisar isso depois.'); return; }
+      const match = result.results.find((item: { displayName: string }) => String(item.displayName).toLowerCase().includes(String(data.get('city') || '').toLowerCase())) || result.results[0];
+      (form.elements.namedItem('latitude') as HTMLInputElement).value = String(match.latitude);
+      (form.elements.namedItem('longitude') as HTMLInputElement).value = String(match.longitude);
+      setMessage(result.results.length > 1 ? 'Coordenadas encontradas; confira o local antes de salvar.' : 'Coordenadas preenchidas.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível localizar o endereço.'); }
+    finally { setGeocoding(false); }
   }
   return (
     <>
@@ -130,6 +147,9 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
             defaultValue={event?.longitude ?? ''}
           />
         </label>
+        <button type="button" className="text-button" disabled={geocoding} onClick={(e) => void geocode((e.currentTarget.form as HTMLFormElement))}>
+          {geocoding ? 'Buscando…' : 'Buscar coordenadas'}
+        </button>
         {field('organizer_name', 'Organizador', event?.organizer_name)}
         <label>
           Preço inicial (R$)

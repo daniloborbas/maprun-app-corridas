@@ -23,13 +23,10 @@ export async function saveAdminEvent(input: unknown): Promise<{ id?: string; err
         error: 'Já existe uma corrida com esse nome, cidade e horário. Edite o cadastro existente.',
       };
     const { data, error } = await client.rpc('save_event', { payload: parsed.data });
-    if (error)
-      return {
-        error:
-          error.code === '23505'
-            ? 'Este slug já está em uso.'
-            : 'Não foi possível salvar. Confira os dados e a conexão.',
-      };
+    if (error) {
+      const detail = `${error.message || ''} ${error.details || ''}`.toLowerCase();
+      return { error: error.code === '23505' || detail.includes('slug') ? 'Este slug já está em uso.' : error.code === '23514' && detail.includes('latitude') ? 'Latitude e longitude devem ser preenchidas juntas.' : 'Não foi possível salvar o evento. Verifique os campos e tente novamente.' };
+    }
     revalidatePath('/', 'layout');
     return { id: String(data) };
   } catch (error) {
