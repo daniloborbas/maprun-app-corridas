@@ -10,7 +10,10 @@ const toLocal = (v?: string | null) =>
 export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manual' }: { event?: RaceEvent; forceDraft?: boolean; sourceMethod?: string }) {
   const router = useRouter();
   const [distances, setDistances] = useState<EventDistance[]>(
-    event?.event_distances || [{ label: '5 km', distance_km: 5, category: 'rua' }],
+    event?.event_distances?.map((distance) => ({
+      ...distance,
+      start_time: distance.start_time ?? '',
+    })) || [{ label: '5 km', distance_km: 5, category: 'rua' }],
   );
   const [message, setMessage] = useState(''),
     [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}),
