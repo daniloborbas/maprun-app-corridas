@@ -7,7 +7,7 @@ import type { RaceEvent, EventDistance } from '@/features/events/types';
 export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 const toLocal = (v?: string | null) =>
   v ? new Date(new Date(v).getTime() - 3 * 3600000).toISOString().slice(0, 16) : '';
-export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manual' }: { event?: RaceEvent; forceDraft?: boolean | 'finished'; sourceMethod?: string }) {
+export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manual', disableSave = false }: { event?: RaceEvent; forceDraft?: boolean | 'finished'; sourceMethod?: string; disableSave?: boolean }) {
   const router = useRouter();
   const [distances, setDistances] = useState<EventDistance[]>(
     event?.event_distances?.map((distance) => ({
@@ -45,7 +45,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     if (distances.length === 0) errors.distances = 'Adicione pelo menos uma distância.';
     for (const key of ['registration_url', 'official_url', 'regulation_url']) if (text(key) && !/^https:\/\//i.test(text(key))) errors[key] = 'Informe uma URL HTTPS válida.';
     setFieldErrors(errors);
-    if (Object.keys(errors).length) { setMessage('Revise os campos destacados abaixo.'); setBusy(false); const first = e.currentTarget.elements.namedItem(Object.keys(errors)[0]) as HTMLElement | null; first?.focus(); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    if (Object.keys(errors).length || disableSave) { setMessage(disableSave ? 'Resolva as informações divergentes antes de salvar.' : 'Revise os campos destacados abaixo.'); setBusy(false); const first = e.currentTarget.elements.namedItem(Object.keys(errors)[0]) as HTMLElement | null; first?.focus(); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     let result: Awaited<ReturnType<typeof saveAdminEvent>>;
     const attemptId = crypto.randomUUID().slice(0, 8);
     try {
@@ -299,7 +299,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
           <p className="error-message" role="status" hidden={!message}>
             {message}
           </p>
-          <button className="button" disabled={busy}>
+          <button className="button" disabled={busy || disableSave}>
             {busy ? 'Salvando…' : 'Salvar evento'}
           </button>
         </div>
