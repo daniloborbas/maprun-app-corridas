@@ -14,6 +14,7 @@ import type { RaceEvent } from '@/features/events/types';
 import { formatDate, formatMoney, isEnded } from '@/features/events/discovery';
 import { EventCover } from './event-cover';
 import { EventActions } from './event-actions';
+import { sanitizeEventText } from '@/features/events/text';
 import { useApp } from './app-provider';
 import { trackAnalyticsEvent } from '@/features/analytics/client';
 export function EventDetails({ event }: { event: RaceEvent }) {
@@ -107,7 +108,7 @@ export function EventDetails({ event }: { event: RaceEvent }) {
         </div>
         <section>
           <h3>Sobre a corrida</h3>
-          <p className="description">{event.description}</p>
+          <p className="description">{sanitizeEventText(event.description)}</p>
         </section>
         <section className="organizer">
           <h3>Organização</h3>

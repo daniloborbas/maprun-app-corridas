@@ -11,6 +11,7 @@ import { duplicateKey, normalizeImportedEvent } from '@/integrations/events/norm
 import { analyticsSchema } from '@/features/analytics/schema';
 import { summarizeMetrics } from '@/features/admin/metrics';
 import { resolveEventImage } from '@/features/events/images';
+import { sanitizeEventText } from '@/features/events/text';
 const now = new Date('2026-09-21T12:00:00Z');
 describe('event images', () => {
   it('keeps official images and deterministically varies fallbacks', () => {
@@ -18,6 +19,11 @@ describe('event images', () => {
     expect(resolveEventImage({ ...base, cover_image_url: 'https://cdn.example.com/run.jpg', has_usable_official_image: true })).toBe('https://cdn.example.com/run.jpg');
     expect(resolveEventImage({ ...base, id: 'same', cover_image_url: '[object Object]', has_usable_official_image: false })).toBe(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false }));
     expect(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false })).toBe(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false }));
+  });
+});
+describe('event text', () => {
+  it('removes imported markup while preserving readable text', () => {
+    expect(sanitizeEventText('<p>Baixe o regulamento - <a href="/x">Clique aqui</a></p><script>bad()</script>')).toBe('Baixe o regulamento - Clique aqui');
   });
 });
 describe('geographic discovery', () => {

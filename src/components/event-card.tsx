@@ -7,6 +7,7 @@ import { formatDate, formatMoney } from '@/features/events/discovery';
 import { EventCover } from './event-cover';
 import { EventActions } from './event-actions';
 import { trackAnalyticsEvent } from '@/features/analytics/client';
+import { sanitizeEventText } from '@/features/events/text';
 export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: number }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -35,7 +36,7 @@ export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: 
             : 'ENCONTRE SUA PRÓXIMA CORRIDA'}
         </span>
         {event.sponsored && <span className="sponsored-badge">Patrocinado · exemplo</span>}
-        <p>{event.short_tagline}</p>
+        <p>{sanitizeEventText(event.short_tagline)}</p>
         <span className="short-rule" />
       </div>
       {event.distance_km !== undefined && (
