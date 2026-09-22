@@ -3,15 +3,18 @@ import { requireAdmin } from '@/lib/supabase/server';
 import { eventSchema } from '@/features/events/validation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-export async function saveAdminEvent(input: unknown): Promise<{ id?: string; error?: string }> {
+export async function saveAdminEvent(input: unknown): Promise<{ id?: string; error?: string; diagnosticId?: string }> {
   const diagnosticId = crypto.randomUUID().slice(0, 8);
+  console.error('[MapRun event-save:start]', { diagnosticId });
   const parsed = eventSchema.safeParse(input);
   if (!parsed.success)
     return {
       error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' · '),
     };
+  console.error('[MapRun event-save:validated]', { diagnosticId });
   try {
     const { client } = await requireAdmin();
+    console.error('[MapRun event-save:admin-ok]', { diagnosticId });
     const { data: duplicates } = await client
       .from('events')
       .select('id,name')
@@ -19,11 +22,14 @@ export async function saveAdminEvent(input: unknown): Promise<{ id?: string; err
       .eq('start_date', parsed.data.start_date)
       .ilike('name', parsed.data.name)
       .is('deleted_at', null);
+    console.error('[MapRun event-save:duplicate-check-ok]', { diagnosticId });
     if (duplicates?.some((e) => e.id !== parsed.data.id))
       return {
         error: 'Já existe uma corrida com esse nome, cidade e horário. Edite o cadastro existente.',
       };
+    console.error('[MapRun event-save:rpc-start]', { diagnosticId });
     const { data, error } = await client.rpc('save_event', { payload: parsed.data });
+    console.error('[MapRun event-save:rpc-end]', { diagnosticId, ok: !error });
     if (error) {
       console.error('[MapRun save_event]', {
         diagnosticId,
@@ -33,14 +39,14 @@ export async function saveAdminEvent(input: unknown): Promise<{ id?: string; err
         hint: error.hint,
       });
       const detail = `${error.message || ''} ${error.details || ''}`.toLowerCase();
-      return { error: error.code === '23505' || detail.includes('slug') ? 'Este slug já está em uso.' : error.code === '23514' && detail.includes('latitude') ? 'Latitude e longitude devem ser preenchidas juntas.' : `Não foi possível salvar o evento. Código de diagnóstico: ${diagnosticId}` };
+      return { error: error.code === '23505' || detail.includes('slug') ? 'Este slug já está em uso.' : error.code === '23514' && detail.includes('latitude') ? 'Latitude e longitude devem ser preenchidas juntas.' : 'Não foi possível salvar o evento.', diagnosticId };
     }
     revalidatePath('/', 'layout');
     return { id: String(data) };
   } catch (error) {
     if (error instanceof Error && (error.message === 'Autenticação necessária.' || error.message.includes('Acesso restrito'))) return { error: 'Sua sessão não possui acesso administrativo. Entre novamente.' };
     console.error('[MapRun saveAdminEvent exception]', { diagnosticId, name: error instanceof Error ? error.name : 'Unknown', message: error instanceof Error ? error.message : String(error) });
-    return { error: `Não foi possível salvar o evento. Código de diagnóstico: ${diagnosticId}` };
+    return { error: 'Não foi possível salvar o evento.', diagnosticId };
   }
 }
 export async function deleteAdminEvent(id: string) {
