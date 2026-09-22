@@ -30,7 +30,9 @@ export async function saveAdminEvent(input: unknown): Promise<{ id?: string; err
     revalidatePath('/', 'layout');
     return { id: String(data) };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Acesso negado.' };
+    if (error instanceof Error && (error.message === 'Autenticação necessária.' || error.message.includes('Acesso restrito'))) return { error: 'Sua sessão não possui acesso administrativo. Entre novamente.' };
+    console.error('save_event failed', error instanceof Error ? { message: error.message } : { error: 'unknown' });
+    return { error: 'Não foi possível salvar o evento. Tente novamente.' };
   }
 }
 export async function deleteAdminEvent(id: string) {

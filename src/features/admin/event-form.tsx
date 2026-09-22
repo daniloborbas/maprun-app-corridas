@@ -75,7 +75,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       source_method: sourceMethod,
     });
     setBusy(false);
-    if (result.error) { const next = { ...fieldErrors }; if (result.error.includes('slug')) next.slug = result.error; else if (result.error.includes('coordenadas')) { next.latitude = result.error; next.longitude = result.error; } setFieldErrors(next); setMessage(result.error.includes('slug') || result.error.includes('coordenadas') ? 'Revise os campos destacados abaixo.' : 'Não foi possível salvar agora. Tente novamente.'); }
+    if (result.error) { const next = { ...fieldErrors }; if (result.error.includes('slug')) next.slug = result.error; else if (result.error.includes('coordenadas')) { next.latitude = result.error; next.longitude = result.error; } setFieldErrors(next); const safe = result.error.startsWith('Já existe') || result.error.startsWith('Este slug') || result.error.startsWith('Sua sessão') || result.error.startsWith('A categoria') || result.error.startsWith('Não foi possível salvar uma'); setMessage(safe ? result.error : 'Não foi possível salvar agora. Tente novamente.'); }
     else {
       setMessage('Evento salvo.');
       router.push('/admin/eventos');
