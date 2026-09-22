@@ -104,10 +104,11 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       const response = await fetch('/api/admin/geocode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: data.get('address'), venue: data.get('venue'), city: data.get('city'), state: data.get('state') }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Não foi possível localizar o endereço.');
-      if (!result.results?.length) { setMessage('Não encontramos as coordenadas automaticamente. Você pode salvar o evento e revisar isso depois.'); return; }
+      if (!result.results?.length) { setMessage('Não foi possível localizar este endereço.'); return; }
       const match = result.results.find((item: { displayName: string }) => String(item.displayName).toLowerCase().includes(String(data.get('city') || '').toLowerCase())) || result.results[0];
       (form.elements.namedItem('latitude') as HTMLInputElement).value = String(match.latitude);
       (form.elements.namedItem('longitude') as HTMLInputElement).value = String(match.longitude);
+      setMessage(result.approximate ? 'Coordenadas encontradas. Localização aproximada pela cidade.' : 'Coordenadas encontradas.');
       setMessage(result.results.length > 1 ? 'Coordenadas encontradas; confira o local antes de salvar.' : 'Coordenadas preenchidas.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível localizar o endereço.'); }
     finally { setGeocoding(false); }
