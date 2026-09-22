@@ -13,6 +13,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     event?.event_distances || [{ label: '5 km', distance_km: 5, category: 'rua' }],
   );
   const [message, setMessage] = useState(''),
+    [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}),
     [busy, setBusy] = useState(false),
     [geocoding, setGeocoding] = useState(false),
     [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -29,6 +30,18 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     const data = new FormData(e.currentTarget);
     const text = (key: string) => String(data.get(key) || '');
     const num = (key: string) => (text(key) === '' ? null : Number(text(key)));
+    const errors: Record<string, string> = {};
+    if (!text('name').trim()) errors.name = 'Informe o nome da corrida.';
+    if (!text('slug').trim()) errors.slug = 'Informe o slug da corrida.';
+    else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(text('slug'))) errors.slug = 'O slug contém caracteres inválidos.';
+    if (!text('start_date')) errors.start_date = 'Informe a data da corrida.';
+    if (!/^[A-Z]{2}$/.test(text('state').toUpperCase())) errors.state = 'Use a sigla do estado com 2 letras.';
+    const lat = num('latitude'), lon = num('longitude');
+    if ((lat === null) !== (lon === null)) { errors.latitude = 'Latitude e longitude devem ser preenchidas juntas.'; errors.longitude = errors.latitude; }
+    if (distances.length === 0) errors.distances = 'Adicione pelo menos uma distância.';
+    for (const key of ['registration_url', 'official_url', 'regulation_url']) if (text(key) && !/^https:\/\//i.test(text(key))) errors[key] = 'Informe uma URL HTTPS válida.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) { setMessage('Revise os campos destacados abaixo.'); setBusy(false); const first = e.currentTarget.elements.namedItem(Object.keys(errors)[0]) as HTMLElement | null; first?.focus(); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     const result = await saveAdminEvent({
       id: event?.id && event.id.length > 10 ? event.id : undefined,
       name: text('name'),
@@ -62,13 +75,14 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       source_method: sourceMethod,
     });
     setBusy(false);
-    if (result.error) setMessage(result.error);
+    if (result.error) { const next = { ...fieldErrors }; if (result.error.includes('slug')) next.slug = result.error; else if (result.error.includes('coordenadas')) { next.latitude = result.error; next.longitude = result.error; } setFieldErrors(next); setMessage(result.error.includes('slug') || result.error.includes('coordenadas') ? 'Revise os campos destacados abaixo.' : 'Não foi possível salvar agora. Tente novamente.'); }
     else {
       setMessage('Evento salvo.');
       router.push('/admin/eventos');
       router.refresh();
     }
   }
+  const input = (name: string, label: string, value = '', type = 'text', required = false) => <label className={fieldErrors[name] ? 'has-error' : ''}>{label}{required ? ' *' : ''}<input name={name} type={type} defaultValue={value} required={required} aria-invalid={Boolean(fieldErrors[name])} aria-describedby={fieldErrors[name] ? `${name}-error` : undefined} />{fieldErrors[name] && <span id={`${name}-error`} className="field-error">{fieldErrors[name]}</span>}</label>;
   async function geocode(form: HTMLFormElement) {
     const data = new FormData(form);
     setGeocoding(true); setMessage('');
@@ -87,8 +101,8 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
   return (
     <>
       <form className="admin-form" onSubmit={submit}>
-        {field('name', 'Nome da corrida', event?.name, 'text', true)}
-        {field('slug', 'Slug público (ex.: corrida-da-serra-2026)', event?.slug, 'text', true)}
+        {input('name', 'Nome da corrida', event?.name, 'text', true)}
+        {input('slug', 'Slug público (ex.: corrida-da-serra-2026)', event?.slug, 'text', true)}
         <label>
           Status
           <select name="status" defaultValue={event?.status || 'draft'}>
@@ -108,7 +122,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
             <option value="kids">Infantil</option>
           </select>
         </label>
-        {field(
+        {input(
           'start_date',
           'Largada (horário de Brasília)',
           toLocal(event?.start_date),
@@ -122,7 +136,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
           'datetime-local',
         )}
         {field('city', 'Cidade', event?.city, 'text', true)}
-        {field('state', 'UF', event?.state, 'text', true)}
+        {input('state', 'UF', event?.state, 'text', true)}
         {field('venue', 'Local de largada', event?.venue)}
         {field('address', 'Endereço', event?.address)}
         <label>
@@ -161,9 +175,9 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
             defaultValue={event?.price_from ?? ''}
           />
         </label>
-        {field('registration_url', 'URL de inscrição (HTTPS)', event?.registration_url, 'url')}
-        {field('official_url', 'Site oficial (HTTPS)', event?.official_url, 'url')}
-        {field('regulation_url', 'Regulamento (HTTPS)', event?.regulation_url, 'url')}
+        {input('registration_url', 'URL de inscrição (HTTPS)', event?.registration_url, 'url')}
+        {input('official_url', 'Site oficial (HTTPS)', event?.official_url, 'url')}
+        {input('regulation_url', 'Regulamento (HTTPS)', event?.regulation_url, 'url')}
         {field('cover_image_url', 'URL da capa ou caminho do fallback', event?.cover_image_url)}
         <label>
           Origem da imagem

@@ -175,6 +175,8 @@ legend {
 .full {
   width: 100%;
 }
+.has-error input,.has-error select,.has-error textarea { border-color:#c77b7b; }
+.field-error { display:block; margin-top:5px; color:#a34f4f; font-size:12px; }
 .login-divider {
   display: flex;
   align-items: center;
