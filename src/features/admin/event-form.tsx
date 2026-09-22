@@ -15,6 +15,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       start_time: distance.start_time ?? '',
     })) || [{ label: '5 km', distance_km: 5, category: 'rua' }],
   );
+  const [existingSources] = useState(() => event?.event_sources?.map((source) => ({ source_name: source.source_name, source_url: source.source_url, source_method: source.source_method || source.import_method || 'manual' })) || []);
   const [message, setMessage] = useState(''),
     [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}),
     [busy, setBusy] = useState(false),
@@ -79,6 +80,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       source_name: sourceMethod === 'url' ? 'Importação por URL' : text('source_name'),
       source_url: text('source_url'),
       source_method: sourceMethod,
+      event_sources: existingSources.length ? existingSources : [{ source_name: sourceMethod === 'url' ? 'Importação por URL' : text('source_name'), source_url: text('source_url'), source_method: sourceMethod }],
       }, attemptId);
     } catch (error) {
       console.error('[MapRun event-save client]', { attemptId, name: error instanceof Error ? error.name : 'Unknown', message: error instanceof Error ? error.message : String(error) });

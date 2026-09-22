@@ -38,7 +38,7 @@ export interface RaceEvent {
   published_at?: string | null;
   updated_at?: string;
   event_distances: EventDistance[];
-  event_sources?: { source_name: string; source_url: string; last_verified_at: string | null }[];
+  event_sources?: { source_name: string; source_url: string; source_method?: string; import_method?: string; last_verified_at: string | null }[];
   sponsored?: boolean;
   demo?: boolean;
   distance_km?: number;
