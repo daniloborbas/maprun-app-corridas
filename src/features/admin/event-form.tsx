@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
 import { saveAdminEvent, deleteAdminEvent } from './actions';
 import type { RaceEvent, EventDistance } from '@/features/events/types';
+import { generateEventEditorialContent } from '@/features/events/editorial';
 export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 const toLocal = (v?: string | null) =>
   v ? new Date(new Date(v).getTime() - 3 * 3600000).toISOString().slice(0, 16) : '';
@@ -113,6 +114,26 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível localizar o endereço.'); }
     finally { setGeocoding(false); }
   }
+  function generateDescriptions(form: HTMLFormElement) {
+    const data = new FormData(form);
+    const generated = generateEventEditorialContent({
+      name: String(data.get('name') || ''),
+      startDate: String(data.get('start_date') || '') ? `${String(data.get('start_date'))}:00-03:00` : null,
+      startTime: String(data.get('start_date') || '').slice(11, 16),
+      city: String(data.get('city') || ''),
+      state: String(data.get('state') || ''),
+      venue: String(data.get('venue') || ''),
+      organizerName: String(data.get('organizer_name') || ''),
+      priceFrom: String(data.get('price_from') || '') ? Number(data.get('price_from')) : null,
+      registrationUrl: String(data.get('registration_url') || ''),
+      distances: distances.map((distance) => ({ label: distance.label, distance_km: distance.distance_km })),
+    });
+    const short = form.elements.namedItem('short_description') as HTMLInputElement | null;
+    const full = form.elements.namedItem('description') as HTMLTextAreaElement | null;
+    if (short) short.value = generated.shortDescription;
+    if (full) full.value = generated.description;
+    setMessage('Descrições geradas para revisão.');
+  }
   return (
     <>
       <form className="admin-form" onSubmit={submit}>
@@ -202,7 +223,6 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
             <option value="generated">Gerada</option>
           </select>
         </label>
-        {field('short_tagline', 'Frase curta da capa', event?.short_tagline)}
         <label className="checkbox-label">
           <input
             name="has_usable_official_image"
@@ -229,6 +249,12 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
           <textarea name="description" defaultValue={event?.description} />
           <small>Exibida na página completa da corrida.</small>
         </label>
+        <div className="wide">
+          <button type="button" className="text-button" onClick={(e) => generateDescriptions(e.currentTarget.form as HTMLFormElement)}>
+            Gerar descrições
+          </button>
+          <small>Preenche os textos com os fatos atuais para você revisar antes de salvar.</small>
+        </div>
         <fieldset className="wide">
           <legend>Distâncias e modalidades</legend>
           {distances.map((distance, i) => (
