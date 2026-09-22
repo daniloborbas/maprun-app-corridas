@@ -2,6 +2,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { htmlCalendarProvider } from './providers/html-calendar';
 import type { DiscoverySource, DiscoveryRunSummary } from './types';
+import { classifyDiscoveryCandidate } from './classifier';
 export const providers = [htmlCalendarProvider];
 export class DiscoveryAlreadyRunning extends Error {}
 const STALE_MS = 10 * 60_000;
@@ -23,7 +24,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   const runId = run.id;
   const started = Date.now();
   const errors: string[] = [];
-  let discovered=0, newCandidates=0, known=0, duplicates=0, failed=0;
+  let discovered=0, newCandidates=0, known=0, duplicates=0, failed=0, ignored=0, pastIgnored=0;
   const finish = async () => {
     const status = failed===0 ? 'completed' : (newCandidates || discovered ? 'partial' : 'failed');
     const { error } = await client.from('discovery_runs').update({ status, finished_at:new Date().toISOString(), discovered_count:discovered, new_count:newCandidates, duplicate_count:duplicates, error_count:failed, error_details:errors }).eq('id',runId);
@@ -38,7 +39,8 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
         const candidates = await provider.discoverEvents(source);
         discovered += candidates.length;
         for (const candidate of candidates) {
-          if (candidate.event_date && Date.parse(candidate.event_date) < Date.now()) continue;
+          if (candidate.event_date && Date.parse(candidate.event_date) < Date.now()) { pastIgnored++; continue; }
+          if (classifyDiscoveryCandidate(candidate) !== 'EVENT') { ignored++; continue; }
           const { data: knownRows, error: knownError } = await client.from('discovered_events').select('id').or(`source_url.eq.${candidate.source_url},external_id.eq.${candidate.external_id}`).limit(1);
           if (knownError) throw knownError;
           if (knownRows?.length) { known++; continue; }
@@ -64,5 +66,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   } finally {
     await finish();
   }
-  return { discovered, newCandidates, known, duplicates, errors:failed, sources:sources.length };
+  const summary = { discovered, newCandidates, known, duplicates, errors:failed, sources:sources.length, ignored, pastIgnored };
+  console.info('[MapRun discovery classification]', summary);
+  return summary;
 }

@@ -1,4 +1,4 @@
 export type DiscoveryCandidateStatus = 'pending'|'imported'|'ignored'|'duplicate'|'error';
 export interface DiscoverySource { id: string; name: string; base_url: string; source_type: 'html_calendar'|'organizer_page'; active: boolean; region: string; last_checked_at?: string|null; }
 export interface DiscoveredEventCandidate { id?: string; source_id: string; source_url: string; external_id?: string|null; name: string; event_date?: string|null; city?: string|null; state?: string|null; organizer_name?: string|null; registration_url?: string|null; cover_image_url?: string|null; raw_title?: string|null; status: DiscoveryCandidateStatus; duplicate_event_id?: string|null; discovered_at?: string; }
-export interface DiscoveryRunSummary { discovered: number; newCandidates: number; known: number; duplicates: number; errors: number; sources: number; }
+export interface DiscoveryRunSummary { discovered: number; newCandidates: number; known: number; duplicates: number; errors: number; sources: number; ignored: number; pastIgnored: number; }
