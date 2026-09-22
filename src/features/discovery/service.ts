@@ -31,6 +31,13 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
     if (error) console.error('[MapRun discovery cron:error]', { runId, code:error.code, message:error.message });
   };
   try {
+    const { data: pendingRows, error: pendingError } = await client.from('discovered_events').select('id,source_id,source_url,name,raw_title,event_date,registration_url,status').eq('status','pending').limit(5000);
+    if (pendingError) throw pendingError;
+    for (const row of pendingRows || []) {
+      const candidate = { ...row, status: 'pending' as const };
+      if (candidate.event_date && Date.parse(candidate.event_date) < Date.now()) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored' }).eq('id', candidate.id); continue; }
+      if (classifyDiscoveryCandidate(candidate) !== 'EVENT') { ignored++; await client.from('discovered_events').update({ status:'ignored' }).eq('id', candidate.id); }
+    }
     for (const source of sources.filter((item) => item.active)) {
       if (Date.now() - started > MAX_RUN_MS) { failed++; errors.push('Execução interrompida por limite de tempo.'); break; }
       const provider = providers.find((item) => item.supports(source));
