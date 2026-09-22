@@ -16,17 +16,6 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
     .is('deleted_at', null)
     .maybeSingle();
   if (!data) notFound();
-  if (data.id === 'f1e1616e-c7df-43c0-9b14-52de54990750') {
-    console.info('[MapRun source verification]', {
-      eventId: data.id,
-      count: data.event_sources?.length ?? 0,
-      sources: (data.event_sources as Array<{ source_name: string; source_url: string; import_method?: string | null }> | null | undefined)?.map((source) => ({
-        source_name: source.source_name,
-        source_url: source.source_url,
-        import_method: source.import_method,
-      })),
-    });
-  }
   return (
     <>
       <div className="admin-heading">
