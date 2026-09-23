@@ -4,6 +4,7 @@ import { htmlCalendarProvider } from './providers/html-calendar';
 import type { DiscoverySource, DiscoveryRunSummary } from './types';
 import { classifyDiscoveryCandidate } from './classifier';
 import { enrichDiscoveredEvent } from './enrichment';
+import { findBestEventDeduplication } from './deduplication';
 export const providers = [htmlCalendarProvider];
 export class DiscoveryAlreadyRunning extends Error {}
 const STALE_MS = 10 * 60_000;
@@ -64,9 +65,6 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
           const { data: knownRows, error: knownError } = await client.from('discovered_events').select('id').or(`source_url.eq.${candidate.source_url},external_id.eq.${candidate.external_id}`).limit(1);
           if (knownError) throw knownError;
           if (knownRows?.length) { known++; continue; }
-          const { data: possible, error: eventError } = await client.from('events').select('id').ilike('name', `%${candidate.name.slice(0,40)}%`).limit(1);
-          if (eventError) throw eventError;
-          if (possible?.[0]) { candidate.status='duplicate'; candidate.duplicate_event_id=possible[0].id; duplicates++; }
           let enrichedCandidate = candidate;
           let quality_status: 'ready'|'incomplete'|'conflict' = 'incomplete';
           if (enrichmentBudget > 0) {
@@ -84,6 +82,27 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
               enrichmentErrors++;
               errors.push(`${source.name}: enriquecimento indisponível`);
             }
+          }
+          const identityDate = enrichedCandidate.event_date ? new Date(enrichedCandidate.event_date) : null;
+          const dateStart = identityDate && !Number.isNaN(identityDate.getTime()) ? identityDate.toISOString().slice(0, 10) : null;
+          const dateEnd = dateStart ? new Date(`${dateStart}T00:00:00.000Z`) : null;
+          if (dateEnd) dateEnd.setUTCDate(dateEnd.getUTCDate() + 1);
+          let discoveredQuery = client.from('discovered_events').select('id,name,event_date,city,state').neq('id', enrichedCandidate.id ?? '00000000-0000-0000-0000-000000000000');
+          let eventsQuery = client.from('events').select('id,name,start_date,city,state');
+          if (dateStart && dateEnd) {
+            discoveredQuery = discoveredQuery.gte('event_date', `${dateStart}T00:00:00.000Z`).lt('event_date', dateEnd.toISOString());
+            eventsQuery = eventsQuery.gte('start_date', `${dateStart}T00:00:00.000Z`).lt('start_date', dateEnd.toISOString());
+          }
+          const [{ data: matchingCandidates, error: candidateMatchError }, { data: matchingEvents, error: eventMatchError }] = await Promise.all([discoveredQuery.limit(100), eventsQuery.limit(100)]);
+          if (candidateMatchError) throw candidateMatchError;
+          if (eventMatchError) throw eventMatchError;
+          const discoveredMatch = dateStart && enrichedCandidate.city && enrichedCandidate.state ? findBestEventDeduplication(enrichedCandidate, matchingCandidates ?? []) : { type: 'none' as const, reasons: [] };
+          if (discoveredMatch.type === 'exact') { known++; continue; }
+          const eventMatch = dateStart && enrichedCandidate.city && enrichedCandidate.state ? findBestEventDeduplication(enrichedCandidate, matchingEvents ?? []) : { type: 'none' as const, reasons: [] };
+          if (eventMatch.type === 'exact') { enrichedCandidate.status = 'duplicate'; enrichedCandidate.duplicate_event_id = eventMatch.matchedEventId ?? null; duplicates++; }
+          if (eventMatch.type === 'probable' || discoveredMatch.type === 'probable') {
+            quality_status = 'conflict';
+            if (eventMatch.matchedEventId) enrichedCandidate.duplicate_event_id = eventMatch.matchedEventId;
           }
           const { error: insertError } = await client.from('discovered_events').insert({ ...enrichedCandidate, quality_status });
           if (insertError) throw insertError;
