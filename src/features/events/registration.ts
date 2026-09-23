@@ -2,7 +2,10 @@ import { isPublicHttpsUrl } from './validation';
 
 export type RegistrationUrlKind = 'specific' | 'event_page' | 'generic' | 'invalid';
 
-const GENERIC_PATH = /^\/(login|signin|contato|contact|eventos?|corridas?)\/?$/i;
+// These routes describe a portal section, not the event itself. Keeping this
+// list centralized prevents import/enrichment data from activating a misleading
+// registration CTA when a source redirects to a generic page.
+const GENERIC_PATH = /^\/(login|signin|contato|contact|eventos?|corridas?|resultados?|calendario|calendar|busca|buscar|search|home|index)\/?$/i;
 
 export function classifyRegistrationUrl(value: string, context?: { officialUrl?: string | null }): RegistrationUrlKind {
   if (!value || !isPublicHttpsUrl(value)) return 'invalid';

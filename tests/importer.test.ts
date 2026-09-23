@@ -65,6 +65,12 @@ describe('destino de inscrição', () => {
     const { classifyRegistrationUrl } = await import('@/features/events/registration');
     expect(classifyRegistrationUrl('https://portal.example/')).toBe('generic');
     expect(classifyRegistrationUrl('https://portal.example/login')).toBe('generic');
+    expect(classifyRegistrationUrl('https://portal.example/resultados')).toBe('generic');
+    expect(classifyRegistrationUrl('https://portal.example/calendario')).toBe('generic');
+    expect(classifyRegistrationUrl('https://portal.example/busca')).toBe('generic');
+    expect(classifyRegistrationUrl('https://portal.example/search')).toBe('generic');
+    expect(classifyRegistrationUrl('https://portal.example/home')).toBe('generic');
+    expect(classifyRegistrationUrl('https://portal.example/index')).toBe('generic');
     expect(classifyRegistrationUrl('https://portal.example/evento/corrida-serra')).toBe('specific');
     expect(classifyRegistrationUrl('http://portal.example/evento/corrida-serra')).toBe('invalid');
   });
