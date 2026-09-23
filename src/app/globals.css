@@ -777,22 +777,23 @@ label,
   .desktop-location-panel > small { padding: 0 10px; color: var(--muted); font-size: 11px; }
   .desktop-location-panel .location-trigger { width: 100%; justify-content: flex-start; min-height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); font-size: 11px; }
   .desktop-race-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-  .desktop-race-card { min-width: 0; min-height: 100%; padding: 0; overflow: hidden; text-align: left; border: 1px solid var(--line); border-radius: 14px; background: white; color: var(--ink); cursor: pointer; transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease; }
+  .desktop-race-card { min-width: 0; min-height: 100%; padding: 0; overflow: hidden; text-align: left; border: 1px solid var(--line); border-radius: 16px; background: #17221d; color: white; cursor: default; transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease; }
   .desktop-race-card:hover,
   .desktop-race-card.selected { border-color: #9be4b5; box-shadow: 0 8px 22px #153d2412; }
   .desktop-race-card:hover { transform: translateY(-2px); }
   .desktop-race-image,
   .desktop-race-panel-image { position: relative; display: block; width: 100%; aspect-ratio: 1.35; overflow: hidden; }
-  .desktop-race-image { aspect-ratio: 1.38; }
-  .desktop-distance-overlay { position: absolute; left: 10px; bottom: 10px; padding: 5px 9px; border-radius: 999px; background: #17221dcc; color: white; font-size: 10px; font-weight: 600; }
-  .desktop-race-card-content { display: flex; min-height: 158px; flex-direction: column; padding: 14px 15px 15px; }
-  .desktop-race-card-content h2 { display: -webkit-box; overflow: hidden; margin: 0 0 8px; font-family: var(--font-display); font-size: 17px; font-weight: 600; line-height: 1.18; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .desktop-race-image { position: relative; aspect-ratio: 0.92; }
+  .desktop-race-image::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #07100a18 22%, #07100a2e 42%, #07100ae8 100%); pointer-events: none; }
+  .desktop-distance-overlay { position: absolute; z-index: 2; left: 12px; top: 12px; padding: 5px 9px; border-radius: 999px; background: #17221dcc; color: white; font-size: 10px; font-weight: 600; }
+  .desktop-race-card-content { position: absolute; z-index: 2; inset: auto 0 0; display: flex; flex-direction: column; padding: 48px 15px 15px; }
+  .desktop-race-card-content h2 { display: -webkit-box; overflow: hidden; margin: 0 0 8px; color: white; font-family: var(--font-display); font-size: 19px; font-weight: 600; line-height: 1.16; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
   .desktop-race-card-content p,
-  .desktop-race-card-content strong { display: flex; align-items: center; gap: 5px; margin: 5px 0 0; font-size: 11px; }
+  .desktop-race-card-content strong { display: flex; align-items: center; gap: 5px; margin: 5px 0 0; color: #f5fbf7; font-size: 11px; }
   .desktop-race-card-content strong { margin-top: 9px; font-size: 12px; font-weight: 600; }
-  .desktop-card-link { display: inline-flex; align-items: center; gap: 5px; margin-top: auto; padding-top: 10px; color: var(--green-dark); font-size: 12px; font-weight: 600; }
+  .desktop-card-link { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: fit-content; margin-top: 13px; padding: 8px 13px; border-radius: 999px; background: var(--green); color: #07351a; font-size: 12px; font-weight: 600; }
   .desktop-distance-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
-  .desktop-distance-badges span { display: inline-flex; align-items: center; gap: 3px; padding: 4px 7px; border-radius: 999px; background: #f1f4f2; font-size: 10px; }
+  .desktop-distance-badges span { display: inline-flex; align-items: center; gap: 3px; padding: 4px 7px; border-radius: 999px; background: #ffffff2b; color: white; font-size: 10px; }
   .desktop-race-panel { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: white; }
   .desktop-race-panel-image { aspect-ratio: 1.45; }
   .desktop-race-panel-content { padding: 18px; }

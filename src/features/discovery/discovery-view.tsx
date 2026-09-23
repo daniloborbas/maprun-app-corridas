@@ -124,14 +124,17 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
           <div className="desktop-race-grid">
             {feed.slice(0, 6).map((event) => (
               <article className="desktop-race-card" key={event.id}>
-                <span className="desktop-race-image"><EventCover event={event} sizes="(min-width: 1440px) 24vw, 34vw" />{event.distance_km !== undefined && <span className="desktop-distance-overlay">{Math.round(event.distance_km)} km de você</span>}</span>
-                <div className="desktop-race-card-content">
+                <div className="desktop-race-image">
+                  <EventCover event={event} sizes="(min-width: 1440px) 24vw, 34vw" />
+                  {event.distance_km !== undefined && <span className="desktop-distance-overlay">{Math.round(event.distance_km)} km de você</span>}
+                  <div className="desktop-race-card-content">
                   <h2>{event.name}</h2>
                   <p><MapPin size={14} />{event.city} · {event.state}</p>
                   <p><CalendarDays size={14} />{formatDate(event.start_date)}</p>
                   <div className="desktop-distance-badges">{event.event_distances.slice(0, 4).map((distance) => <span key={distance.label}>{distance.label}</span>)}{event.event_distances.length > 4 && <span>+{event.event_distances.length - 4}</span>}</div>
                   {event.price_from !== null && <strong>{event.price_from === 0 ? 'Gratuito' : `A partir de ${formatMoney(event.price_from)}`}</strong>}
                   <a className="desktop-card-link" href={`/corrida/${event.slug}`} target="_blank" rel="noopener noreferrer">Mais detalhes <ArrowRight size={14} /></a>
+                  </div>
                 </div>
               </article>
             ))}
