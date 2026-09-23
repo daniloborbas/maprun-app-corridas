@@ -665,7 +665,12 @@ label,
     padding-top: 0;
   }
   .discovery-intro-sticky {
+    position: fixed;
+    top: 70px;
+    left: max(32px, calc((100vw - 1216px) / 2));
+    width: 300px;
     padding-top: 54px;
+    z-index: 5;
   }
   .discovery-intro h1 {
     font-size: clamp(48px, 4.1vw, 62px);
@@ -728,8 +733,12 @@ label,
     align-self: start;
   }
   .discovery-side-sticky {
+    position: fixed;
     top: 70px;
+    right: max(32px, calc((100vw - 1216px) / 2));
+    width: 260px;
     padding-top: 67px;
+    z-index: 5;
   }
   .discovery-side h2 {
     font-size: 29px;
@@ -752,6 +761,14 @@ label,
     grid-template-columns: 320px minmax(620px, 1fr) 280px;
     gap: 44px;
     padding-top: 46px;
+  }
+  .discovery-intro-sticky {
+    left: max(56px, calc((100vw - 1328px) / 2));
+    width: 320px;
+  }
+  .discovery-side-sticky {
+    right: max(56px, calc((100vw - 1328px) / 2));
+    width: 280px;
   }
   .discovery-card {
     height: min(760px, calc(100svh - 210px));
@@ -1659,8 +1676,18 @@ blockquote span {
   }
   .discovery-intro-sticky,
   .discovery-side-sticky {
+    position: fixed;
     top: 72px;
     padding-top: 36px;
+    z-index: 5;
+  }
+  .discovery-intro-sticky {
+    left: max(24px, calc((100vw - 1160px) / 2));
+    width: 210px;
+  }
+  .discovery-side-sticky {
+    right: max(24px, calc((100vw - 1160px) / 2));
+    width: 190px;
   }
   .discovery-intro h1 {
     font-size: clamp(38px, 4.2vw, 50px);
