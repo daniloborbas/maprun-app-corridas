@@ -8,8 +8,8 @@ type Result = { label: string; ok: boolean; code?: string; message?: string };
 const db = browserDb();
 const fallback = 'Não executado';
 
-function outcome(label: string, error: { code?: string; message?: string } | null, expectedBlocked = true): Result {
-  const blocked = Boolean(error);
+function outcome(label: string, error: { code?: string; message?: string } | null, expectedBlocked = true, affected = false): Result {
+  const blocked = Boolean(error) || !affected;
   return { label, ok: expectedBlocked ? blocked : !blocked, code: error?.code, message: error?.message || (blocked ? fallback : 'Operação permitida') };
 }
 
@@ -61,15 +61,21 @@ export function RlsTestHarness() {
     const attParts = attendanceId.split(':');
     const favEvent = favParts[1] || eventId;
     const attEvent = attParts[1] || eventId;
-    next.push(outcome('Favorites delete de outro usuário', (await db.from('favorites').delete().eq('user_id', otherUserId).eq('event_id', favEvent)).error));
-    next.push(outcome('Favorites insert como outro usuário', (await db.from('favorites').insert({ user_id: otherUserId, event_id: eventId })).error));
-    next.push(outcome('Attendance delete de outro usuário', (await db.from('event_attendance').delete().eq('user_id', otherUserId).eq('event_id', attEvent)).error));
-    next.push(outcome('Attendance insert como outro usuário', (await db.from('event_attendance').insert({ user_id: otherUserId, event_id: eventId })).error));
-    next.push(outcome('Profile update de outro usuário', (await db.from('profiles').update({ name: profileValue }).eq('id', otherUserId)).error));
+    const favoriteDelete = await db.from('favorites').delete().eq('user_id', otherUserId).eq('event_id', favEvent).select('user_id,event_id');
+    next.push(outcome('Favorites delete de outro usuário', favoriteDelete.error, true, (favoriteDelete.data || []).length > 0));
+    const favoriteInsert = await db.from('favorites').insert({ user_id: otherUserId, event_id: eventId }).select('user_id,event_id');
+    next.push(outcome('Favorites insert como outro usuário', favoriteInsert.error, true, (favoriteInsert.data || []).length > 0));
+    const attendanceDelete = await db.from('event_attendance').delete().eq('user_id', otherUserId).eq('event_id', attEvent).select('user_id,event_id');
+    next.push(outcome('Attendance delete de outro usuário', attendanceDelete.error, true, (attendanceDelete.data || []).length > 0));
+    const attendanceInsert = await db.from('event_attendance').insert({ user_id: otherUserId, event_id: eventId }).select('user_id,event_id');
+    next.push(outcome('Attendance insert como outro usuário', attendanceInsert.error, true, (attendanceInsert.data || []).length > 0));
+    const profileUpdate = await db.from('profiles').update({ name: profileValue }).eq('id', otherUserId).select('id');
+    next.push(outcome('Profile update de outro usuário', profileUpdate.error, true, (profileUpdate.data || []).length > 0));
     const file = new Blob(['rls-test'], { type: 'text/plain' });
     next.push(outcome('Storage write no path de outro usuário', (await db.storage.from('avatars').upload(`${otherUserId}/rls-test.txt`, file, { upsert: true })).error));
     next.push(outcome('Storage delete no path de outro usuário', (await db.storage.from('avatars').remove([`${otherUserId}/rls-test.txt`])).error));
-    next.push(outcome('Admin RPC save_event', (await db.rpc('save_event', { payload: {} })).error));
+    const adminProbe = await db.rpc('save_event', { payload: { slug: `rls-probe-${user.id.slice(0, 8)}`, name: 'RLS probe', start_date: new Date(Date.now() + 86400000).toISOString(), city: 'RLS', status: 'draft', event_category: 'rua', official_url: '', registration_url: '', regulation_url: '', cover_image_url: '/images/runners.jpg', cover_image_source: 'fallback', has_usable_official_image: false, organizer_verified: false, event_distances: [{ label: '5 km', distance_km: 5, category: 'rua', start_time: '', price_from: null, order_index: 0 }], source_name: 'RLS probe', source_url: '', source_method: 'manual' } });
+    next.push(outcome('Admin RPC save_event', adminProbe.error, true, !adminProbe.error));
     setResults(next);
   };
 
