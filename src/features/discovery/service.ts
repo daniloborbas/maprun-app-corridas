@@ -38,10 +38,14 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   let finished = false;
   const finish = async (fatal = false) => {
     if (finished) return;
-    finished = true;
     const status = failed===0 ? 'completed' : (newCandidates || discovered ? 'partial' : 'failed');
-    const { error } = await client.from('discovery_runs').update({ status: fatal ? 'failed' : status, finished_at:new Date().toISOString(), discovered_count:discovered, new_count:newCandidates, duplicate_count:duplicates, error_count:failed, error_details:errorDetails, sources_processed:sources.length, candidates_found:discovered, candidates_new:newCandidates, candidates_enriched:enriched, candidates_ignored:ignored + pastIgnored, errors_count:failed + enrichmentErrors + aiMetrics.aiFailures, ...aiMetrics }).eq('id',runId);
-    if (error) console.error('[MapRun discovery cron:error]', { runId, code:error.code, message:error.message });
+    const payload = { status: fatal ? 'failed' : status, finished_at:new Date().toISOString(), discovered_count:discovered, new_count:newCandidates, duplicate_count:duplicates, error_count:failed, error_details:errorDetails, sources_processed:sources.length, candidates_found:discovered, candidates_new:newCandidates, candidates_enriched:enriched, candidates_ignored:ignored + pastIgnored, errors_count:failed + enrichmentErrors + aiMetrics.aiFailures, ...aiMetrics };
+    const { error } = await client.from('discovery_runs').update(payload).eq('id',runId);
+    if (error) {
+      console.error('[MapRun discovery observability:error]', { runId, stage:'finalize', type:'update_failed', code:error.code, message:error.message });
+      return;
+    }
+    finished = true;
   };
   const recordAi = (result: { attempted: boolean; success: boolean; errorType?: string; usage?: { inputTokens?: number; outputTokens?: number } }) => {
     if (!result.attempted) return;
