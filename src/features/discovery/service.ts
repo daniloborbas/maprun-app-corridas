@@ -7,6 +7,7 @@ import { enrichDiscoveredEvent } from './enrichment';
 import { findBestEventDeduplication } from './deduplication';
 import { calculateDiscoveryConfidence } from './confidence';
 import { observeAiFallback, sanitizeDiscoveryError, type DiscoveryAiMetrics } from './observability';
+import { buildDiscoveryRunUpdate } from './run-update';
 export const providers = [htmlCalendarProvider];
 export class DiscoveryAlreadyRunning extends Error {}
 const STALE_MS = 10 * 60_000;
@@ -39,7 +40,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   const finish = async (fatal = false) => {
     if (finished) return;
     const status = failed===0 ? 'completed' : (newCandidates || discovered ? 'partial' : 'failed');
-    const payload = { status: fatal ? 'failed' : status, finished_at:new Date().toISOString(), discovered_count:discovered, new_count:newCandidates, duplicate_count:duplicates, error_count:failed, error_details:errorDetails, sources_processed:sources.length, candidates_found:discovered, candidates_new:newCandidates, candidates_enriched:enriched, candidates_ignored:ignored + pastIgnored, errors_count:failed + enrichmentErrors + aiMetrics.aiFailures, ...aiMetrics };
+    const payload = buildDiscoveryRunUpdate({ status: fatal ? 'failed' : status, finishedAt: new Date().toISOString(), discoveredCount: discovered, newCount: newCandidates, duplicateCount: duplicates, errorCount: failed, errorDetails, sourcesProcessed: sources.length, candidatesFound: discovered, candidatesNew: newCandidates, candidatesEnriched: enriched, candidatesIgnored: ignored + pastIgnored, errorsCount: failed + enrichmentErrors + aiMetrics.aiFailures, aiMetrics });
     const { error } = await client.from('discovery_runs').update(payload).eq('id',runId);
     if (error) {
       console.error('[MapRun discovery observability:error]', { runId, stage:'finalize', type:'update_failed', code:error.code, message:error.message });
