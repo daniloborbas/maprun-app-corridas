@@ -1351,18 +1351,31 @@ blockquote span {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 .modal {
   position: relative;
   border-radius: 22px;
   background: white;
   padding: 40px;
-  max-width: 440px;
-  width: 100%;
+  width: min(100%, 440px);
+  max-width: 100%;
+  min-width: 0;
   box-shadow: 0 25px 80px #14221a40;
   max-height: 90svh;
   overflow: auto;
+  overflow-wrap: anywhere;
+}
+.modal input,
+.modal button,
+.modal a,
+.modal p,
+.modal small,
+.modal h2 {
+  max-width: 100%;
 }
 .modal-close {
   position: absolute;
@@ -2037,7 +2050,8 @@ blockquote span {
     font-size: 25px;
   }
   .modal-backdrop {
-    padding: 18px;
+    align-items: center;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   }
   .empty-state {
     padding: 43px 10px;
