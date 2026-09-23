@@ -1,6 +1,7 @@
 import type { RaceEvent } from './types';
+import { EVENT_FALLBACK_IMAGES, FALLBACK_EMERGENCY_IMAGE } from './fallback-images';
 
-const FALLBACKS = ['/images/runners.jpg', '/images/road.jpg', '/images/mountains.jpg', '/images/mantiqueira-run.png'] as const;
+const FALLBACKS = EVENT_FALLBACK_IMAGES.map((item) => item.src) as readonly string[];
 
 function validUrl(value: unknown): value is string {
   if (typeof value !== 'string' || (!/^https?:\/\//i.test(value) && !value.startsWith('/api/events/cover'))) return false;
@@ -19,11 +20,12 @@ export function resolveEventImage(event: Pick<RaceEvent, 'id' | 'slug' | 'name' 
   return resolveEventFallbackImage(event);
 }
 
-export function resolveEventFallbackImage(event: Pick<RaceEvent, 'id' | 'slug' | 'name' | 'event_category'>): string {
-  const text = `${event.name} ${event.event_category}`.toLowerCase();
-  if (/trail|montanha/.test(text)) return FALLBACKS[2];
-  if (/night|noturna/.test(text)) return FALLBACKS[1];
-  return FALLBACKS[stableIndex(event.id || event.slug || event.name)];
+export function resolveEventFallbackImage(event: Pick<RaceEvent, 'id' | 'slug' | 'name' | 'event_category'> & Partial<Pick<RaceEvent, 'city' | 'state' | 'venue' | 'description' | 'start_date'>>): string {
+  const text = `${event.name} ${event.event_category} ${event.city || ''} ${event.state || ''} ${event.venue || ''} ${event.description || ''}`.toLowerCase();
+  const terrain = /trail|montanha|serra|trilha|mata/.test(text) ? 'trail' : /night|noturna/.test(text) ? 'night' : /parque|lago|bosque/.test(text) ? 'park' : /praia|orla|litoral/.test(text) ? 'coastal' : /rural|fazenda|estrada/.test(text) ? 'rural' : 'general';
+  const candidates = EVENT_FALLBACK_IMAGES.filter((item) => item.terrains.includes(terrain) || terrain === 'general' && item.terrains.includes('general'));
+  const pool = candidates.length ? candidates : EVENT_FALLBACK_IMAGES;
+  return pool[stableIndex(event.id || event.slug || event.name) % pool.length]?.src || FALLBACK_EMERGENCY_IMAGE;
 }
 
 export function buildGeneratedCoverUrl(input: { slug: string; name: string; city?: string; state?: string; category?: string; distances?: string[] }): string {
