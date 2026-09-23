@@ -50,3 +50,12 @@ describe('conteúdo editorial e imagens oficiais', () => {
     expect(draft.description).not.toMatch(/Itajubá|MG|R\$|inscri/i);
   });
 });
+
+describe('inscrição segura', () => {
+  it('não trata homepage ou login como inscrição específica', async () => {
+    const { isSpecificRegistrationUrl } = await import('@/features/events/validation');
+    expect(isSpecificRegistrationUrl('https://portal.example.com/')).toBe(false);
+    expect(isSpecificRegistrationUrl('https://portal.example.com/login')).toBe(false);
+    expect(isSpecificRegistrationUrl('https://portal.example.com/evento/corrida-serra')).toBe(true);
+  });
+});

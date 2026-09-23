@@ -17,6 +17,7 @@ import { EventActions } from './event-actions';
 import { sanitizeEventText } from '@/features/events/text';
 import { useApp } from './app-provider';
 import { trackAnalyticsEvent } from '@/features/analytics/client';
+import { isSpecificRegistrationUrl } from '@/features/events/validation';
 export function EventDetails({ event }: { event: RaceEvent }) {
   const { demo } = useApp();
   const ended = isEnded(event),
@@ -142,11 +143,10 @@ export function EventDetails({ event }: { event: RaceEvent }) {
           </p>
         ))}
         <div className="registration-cta">
-          {!ended && !cancelled && event.registration_url && !event.demo ? (
+          {!ended && !cancelled && isSpecificRegistrationUrl(event.registration_url) && !event.demo ? (
             <a
               className="button"
               href={`/api/registration/${event.id}`}
-              onClick={() => trackAnalyticsEvent('registration_click', event.id)}
             >
               Inscrever-se <ArrowRight size={20} />
             </a>

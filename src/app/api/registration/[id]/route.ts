@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabase/server';
-import { isPublicHttpsUrl } from '@/features/events/validation';
+import { isSpecificRegistrationUrl } from '@/features/events/validation';
 import { z } from 'zod';
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) return new Response('Corrida inválida.', { status: 400 });
   const client = await db();
@@ -18,9 +18,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     event.is_demo ||
     event.status !== 'published' ||
     Date.parse(event.end_date || event.start_date) < Date.now() ||
-    !isPublicHttpsUrl(event.registration_url)
+    !isSpecificRegistrationUrl(event.registration_url)
   )
     return new Response('Inscrições indisponíveis.', { status: 410 });
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) {
+    const next = `/api/registration/${id}`;
+    return NextResponse.redirect(new URL(`/?login=1&next=${encodeURIComponent(next)}`, request.url));
+  }
   // Aggregate click is recorded server-side without user/session identifiers.
   // Consented client events carry attribution; dashboards use the server marker for totals.
   await client.rpc('track_event', {

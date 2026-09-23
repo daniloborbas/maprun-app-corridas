@@ -45,6 +45,7 @@ export function AppProvider({
     [going, setGoing] = useState(initialGoing);
   const [location, updateLocation] = useState<LocationPreference | null>(null);
   const [showLogin, setShowLogin] = useState(false),
+    [loginTarget, setLoginTarget] = useState('/perfil'),
     [toast, setToast] = useState('');
   const [email, setEmail] = useState(''),
     [loginMessage, setLoginMessage] = useState(''),
@@ -78,6 +79,15 @@ export function AppProvider({
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production')
       void navigator.serviceWorker.register('/sw.js').catch(() => {});
   }, [demo]);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get('next');
+    if (params.get('login') === '1') {
+      const target = next && next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/perfil';
+      setLoginTarget(target);
+      setShowLogin(true);
+    }
+  }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
   useEffect(() => {
     trackAnalyticsEvent('page_view');
@@ -153,7 +163,7 @@ export function AppProvider({
       setLoginMessage('O login estará disponível quando o Supabase for conectado.');
       return;
     }
-    const target = pathname.startsWith('/') && !pathname.startsWith('//') && !pathname.includes('\\') ? pathname : '/perfil';
+    const target = loginTarget.startsWith('/') && !loginTarget.startsWith('//') && !loginTarget.includes('\\') ? loginTarget : '/perfil';
     const { error } = await client.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(target)}` },
@@ -240,7 +250,7 @@ export function AppProvider({
               onSubmit={async (e) => {
                 e.preventDefault();
                 setSending(true);
-                const result = await sendLoginLink(email, pathname);
+                const result = await sendLoginLink(email, loginTarget);
                 setSending(false);
                 setLoginMessage(result.error || 'Link enviado! Abra seu e-mail para entrar.');
                 router.refresh();

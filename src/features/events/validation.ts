@@ -14,6 +14,13 @@ export function isPublicHttpsUrl(value: string) {
     return false;
   }
 }
+export function isSpecificRegistrationUrl(value: string) {
+  if (!isPublicHttpsUrl(value)) return false;
+  try {
+    const path = new URL(value).pathname.toLowerCase();
+    return path.length > 1 && !/^\/(login|signin|contato|contact|eventos?|corridas?)\/?$/.test(path);
+  } catch { return false; }
+}
 const externalUrl = z
   .string()
   .max(2000)
