@@ -1627,7 +1627,26 @@ blockquote span {
     min-height: 740px;
   }
 }
-@media (max-width: 1150px) {
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .discovery-layout {
+    width: min(100% - 48px, 1160px);
+    grid-template-columns: minmax(210px, 0.8fr) minmax(420px, 1.7fr) minmax(190px, 0.8fr);
+    gap: 24px;
+    padding: 34px 0 64px;
+  }
+  .discovery-intro,
+  .discovery-side {
+    top: 72px;
+    padding-top: 36px;
+  }
+  .discovery-intro h1 {
+    font-size: clamp(38px, 4.2vw, 50px);
+  }
+  .discovery-side h2 {
+    font-size: 24px;
+  }
+}
+@media (max-width: 1023px) {
   .discovery-layout {
     grid-template-columns: minmax(210px, 0.8fr) minmax(390px, 1.4fr);
     gap: 40px;
