@@ -16,13 +16,19 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
   const filterRailRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const rail = filterRailRef.current;
-    if (!rail) return;
+    if (!rail || !window.matchMedia('(max-width: 899px)').matches) return;
     const target = category
       ? rail.querySelector<HTMLElement>('[aria-pressed="true"]')
       : sort !== 'date'
         ? rail.querySelector<HTMLElement>('.sort-select')
         : null;
-    target?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    if (!target) return;
+    const left = target.offsetLeft;
+    const right = left + target.offsetWidth;
+    const visibleLeft = rail.scrollLeft;
+    const visibleRight = visibleLeft + rail.clientWidth;
+    const nextLeft = left < visibleLeft ? left : right > visibleRight ? right - rail.clientWidth : visibleLeft;
+    if (nextLeft !== visibleLeft) rail.scrollTo({ left: nextLeft, behavior: 'smooth' });
   }, [category, sort]);
   const feed = useMemo(
     () => getDiscoveryFeed(events, { location: location || undefined, radius: location?.radiusKm, category, sort }),

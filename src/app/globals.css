@@ -19,9 +19,6 @@ html {
   scroll-behavior: smooth;
   overflow-x: clip;
 }
-html:has(.discovery-feed) {
-  scroll-snap-type: y proximity;
-}
 body {
   margin: 0;
   background: #fff;
@@ -451,7 +448,6 @@ label,
   max-height: 850px;
   border-radius: 20px;
   overflow: hidden;
-  scroll-snap-align: start;
   color: white;
   background: #344b3c;
 }
@@ -1876,7 +1872,6 @@ blockquote span {
   .discovery-feed {
     padding: 0 10px;
     gap: 16px;
-    scroll-snap-type: y proximity;
   }
   .discovery-card {
     border-radius: 15px;
