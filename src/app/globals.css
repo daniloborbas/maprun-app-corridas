@@ -1855,6 +1855,9 @@ blockquote span {
     font-size: 24px;
   }
 }
+@media (min-width: 900px) {
+  .desktop-discovery-grid { display: none !important; }
+}
 @media (max-width: 899px) {
   .discovery-layout {
     grid-template-columns: minmax(210px, 0.8fr) minmax(390px, 1.4fr);
