@@ -716,6 +716,9 @@ label,
     color: white;
   }
   .discovery-side {
+    position: sticky;
+    top: 70px;
+    align-self: start;
     padding-top: 67px;
   }
   .discovery-side h2 {
