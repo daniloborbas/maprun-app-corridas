@@ -30,21 +30,23 @@ export function FavoritesView({ events }: { events: RaceEvent[] }) {
         </EmptyState>
       ) : (
         <>
-          <div className="segmented-control">
-            <button
-              className={tab === 'favorites' ? 'active' : ''}
-              aria-pressed={tab === 'favorites'}
-              onClick={() => setTab('favorites')}
-            >
-              Eventos ({favorites.length})
-            </button>
-            <button
-              className={tab === 'going' ? 'active' : ''}
-              aria-pressed={tab === 'going'}
-              onClick={() => setTab('going')}
-            >
-              Eu vou ({going.length})
-            </button>
+          <div className="saved-tabs-wrapper">
+            <div className="segmented-control">
+              <button
+                className={tab === 'favorites' ? 'active' : ''}
+                aria-pressed={tab === 'favorites'}
+                onClick={() => setTab('favorites')}
+              >
+                Eventos ({favorites.length})
+              </button>
+              <button
+                className={tab === 'going' ? 'active' : ''}
+                aria-pressed={tab === 'going'}
+                onClick={() => setTab('going')}
+              >
+                Eu vou ({going.length})
+              </button>
+            </div>
           </div>
           <div className="saved-grid">
             {events

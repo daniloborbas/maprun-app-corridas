@@ -761,12 +761,14 @@ label,
     line-height: 1.45;
   }
   .feed-toolbar { margin: 25px 0 18px; }
-  .feed-toolbar .filter-scroll { display: flex; align-items: center; justify-content: center; gap: 18px; overflow: visible; }
+  .feed-toolbar .filter-scroll { display: flex; width: 100%; align-items: center; justify-content: center; gap: 18px; overflow: visible; }
   .feed-toolbar { width: 100%; }
   .feed-toolbar .category-tabs { flex-wrap: wrap; gap: 8px; }
   .feed-toolbar .category-tabs button,
   .feed-toolbar .sort-select { min-height: 38px; border-radius: 999px; }
   .feed-toolbar .sort-select { flex: 0 0 auto; min-width: 145px; }
+  .saved-tabs-wrapper { width: 100%; display: flex; justify-content: center; }
+  .saved-tabs-wrapper .segmented-control { width: min(100%, 440px); }
   .desktop-experience-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -1217,6 +1219,7 @@ label,
   gap: 5px;
   max-width: 440px;
 }
+.saved-tabs-wrapper { display: contents; }
 .segmented-control button {
   flex: 1;
   border-radius: 25px;
