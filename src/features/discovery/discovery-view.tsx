@@ -58,7 +58,6 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
             <LocationPicker />
           </div>
           <h1>Descobrir</h1>
-          <p>Encontre sua próxima corrida</p>
         </div>
         <div className="feed-toolbar">
           <div className="filter-scroll">

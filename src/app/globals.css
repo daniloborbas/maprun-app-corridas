@@ -1733,8 +1733,8 @@ blockquote span {
   }
   .mobile-discovery-title {
     display: grid;
-    gap: 5px;
-    padding: 16px 19px 8px;
+    gap: 18px;
+    padding: 16px 19px 12px;
   }
   .mobile-discovery-brand-row {
     display: flex;
@@ -1751,13 +1751,10 @@ blockquote span {
     font-size: 18px;
     font-weight: 700;
   }
-  .mobile-discovery-title p {
-    margin: 0;
-    color: var(--muted);
-    font-size: 13px;
-  }
   .mobile-discovery-title h1 {
-    font-size: 23px;
+    margin: 0;
+    text-align: center;
+    font-size: clamp(24px, 7vw, 28px);
     letter-spacing: -0.04em;
   }
   .mobile-discovery-title .location-trigger {
