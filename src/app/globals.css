@@ -1033,6 +1033,11 @@ blockquote span {
   background: linear-gradient(150deg, #e7f1e7, #cedfcf);
   color: var(--green);
 }
+.user-avatar { position: relative; display: grid; place-items: center; flex: 0 0 auto; overflow: hidden; border-radius: 50%; background: #e8f6ed; color: #126b37; font-weight: 700; }
+.user-avatar-image { object-fit: cover; }
+.avatar-upload { display: grid; gap: 12px; justify-items: center; }
+.avatar-preview { border-radius: 50%; object-fit: cover; }
+.avatar-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .profile-identity h2 {
   font-size: 25px;
 }

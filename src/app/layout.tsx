@@ -40,7 +40,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="pt-BR">
       <body className={`${inter.variable} ${poppins.variable}`}>
         <AppProvider
-          user={user ? { id: user.id, name: profile?.data?.name || '' } : null}
+          user={user ? { id: user.id, name: profile?.data?.name || '', googleAvatarUrl: typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null } : null}
           demo={demoMode}
           initialFavorites={favorites?.data?.map((e) => e.event_id) || []}
           initialGoing={going?.data?.map((e) => e.event_id) || []}

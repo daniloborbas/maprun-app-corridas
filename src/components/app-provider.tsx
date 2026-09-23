@@ -18,7 +18,7 @@ export interface LocationPreference extends Coordinates {
   precise?: boolean;
 }
 interface AppContextValue {
-  user: { id: string; name: string } | null;
+  user: { id: string; name: string; googleAvatarUrl?: string | null } | null;
   demo: boolean;
   favorites: string[];
   going: string[];

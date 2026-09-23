@@ -27,3 +27,15 @@ export async function saveProfile(input: unknown) {
   revalidatePath('/perfil');
   return { success: true };
 }
+
+export async function updateAvatarUrl(avatarUrl: string | null) {
+  if (avatarUrl !== null && (!avatarUrl.startsWith('https://') || avatarUrl.length > 2000)) return { error: 'Imagem de perfil inválida.' };
+  const client = await db();
+  if (!client) return { error: 'Perfil disponível após conectar o Supabase.' };
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return { error: 'Sua sessão expirou. Entre novamente.' };
+  const { error } = await client.from('profiles').update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() }).eq('id', user.id);
+  if (error) return { error: 'Não foi possível atualizar a foto.' };
+  revalidatePath('/perfil');
+  return { success: true };
+}
