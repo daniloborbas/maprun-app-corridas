@@ -121,31 +121,6 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
           </div>
         </div>
         <div className="desktop-experience-grid">
-          <aside className="desktop-nav-panel">
-            <nav aria-label="Navegação desktop">
-              <Link className="active" href="/">Descobrir</Link>
-              <Link href="/buscar">Buscar</Link>
-              <Link href="/salvos">Salvos</Link>
-              <Link href="/perfil">Perfil</Link>
-            </nav>
-            <div className="desktop-nav-group">
-              <span>Filtros</span>
-              <div className="desktop-location-panel">
-                <span>Localização</span>
-                <LocationPicker />
-                <small>Escolher cidade</small>
-              </div>
-              <button className={location && sort === 'nearby' ? 'active' : ''} type="button" disabled={!location} onClick={() => setSort('nearby')}>Perto de você</button>
-              <button className={sort === 'date' ? 'active' : ''} type="button" onClick={() => setSort('date')}>Próximas datas</button>
-            </div>
-            <div className="desktop-nav-group desktop-modalities">
-              <span>Modalidades</span>
-              <button type="button" onClick={() => setCategory('rua')}>Rua</button>
-              <button type="button" onClick={() => setCategory('trail')}>Trail</button>
-              <button type="button" onClick={() => setCategory('mountain')}>Montanha</button>
-              <button type="button" onClick={() => setCategory('virtual')}>Virtual</button>
-            </div>
-          </aside>
           <div className="desktop-race-grid">
             {feed.slice(0, 6).map((event) => (
               <article className="desktop-race-card" key={event.id}>

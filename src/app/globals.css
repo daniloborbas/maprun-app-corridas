@@ -718,6 +718,7 @@ label,
   .desktop-page-title {
     display: block;
     margin: 0;
+    text-align: center;
     font-family: var(--font-display);
     font-size: 39px;
     line-height: 1.05;
@@ -726,7 +727,7 @@ label,
     content: 'Encontre provas incríveis perto de você e viva sua próxima linha de chegada.';
     display: block;
     max-width: 520px;
-    margin-top: 10px;
+    margin: 10px auto 0;
     color: var(--muted);
     font-family: var(--font-sans);
     font-size: 15px;
@@ -734,15 +735,15 @@ label,
     line-height: 1.45;
   }
   .feed-toolbar { margin: 25px 0 18px; }
-  .feed-toolbar .filter-scroll { display: flex; align-items: center; justify-content: space-between; gap: 18px; overflow: visible; }
+  .feed-toolbar .filter-scroll { display: flex; align-items: center; justify-content: center; gap: 18px; overflow: visible; }
   .feed-toolbar .category-tabs { flex-wrap: wrap; gap: 8px; }
   .feed-toolbar .category-tabs button,
   .feed-toolbar .sort-select { min-height: 38px; border-radius: 999px; }
   .feed-toolbar .sort-select { flex: 0 0 auto; min-width: 145px; }
   .desktop-experience-grid {
     display: grid;
-    grid-template-columns: 210px minmax(0, 1fr);
-    gap: 24px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
     align-items: start;
   }
   .desktop-nav-panel,
@@ -775,7 +776,7 @@ label,
   .desktop-location-panel > span { color: var(--muted); font-size: 11px; }
   .desktop-location-panel > small { padding: 0 10px; color: var(--muted); font-size: 11px; }
   .desktop-location-panel .location-trigger { width: 100%; justify-content: flex-start; min-height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); font-size: 11px; }
-  .desktop-race-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .desktop-race-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
   .desktop-race-card { min-width: 0; min-height: 100%; padding: 0; overflow: hidden; text-align: left; border: 1px solid var(--line); border-radius: 14px; background: white; color: var(--ink); cursor: pointer; transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease; }
   .desktop-race-card:hover,
   .desktop-race-card.selected { border-color: #9be4b5; box-shadow: 0 8px 22px #153d2412; }
@@ -968,8 +969,8 @@ label,
     width: min(100% - 112px, 1400px);
     padding-top: 46px;
   }
-  .desktop-experience-grid { grid-template-columns: 210px minmax(0, 1fr); gap: 28px; }
-  .desktop-race-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .desktop-experience-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .desktop-race-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
   .discovery-intro-sticky {
     left: max(32px, calc((100vw - 1400px) / 2));
     width: 280px;
@@ -981,6 +982,9 @@ label,
   .discovery-card {
     height: min(760px, calc(100svh - 210px));
   }
+}
+@media (min-width: 1600px) {
+  .desktop-race-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 .load-more {
   margin: 15px auto;
