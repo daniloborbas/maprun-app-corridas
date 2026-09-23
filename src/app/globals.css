@@ -17,7 +17,7 @@
 }
 html {
   scroll-behavior: smooth;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 html:has(.discovery-feed) {
   scroll-snap-type: y proximity;
@@ -30,7 +30,7 @@ body {
   font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 a {
   color: inherit;
@@ -324,6 +324,9 @@ label,
   align-items: start;
 }
 .discovery-intro {
+  align-self: start;
+}
+.discovery-intro-sticky {
   position: sticky;
   top: 70px;
   padding-top: 63px;
@@ -334,7 +337,7 @@ label,
   letter-spacing: -0.065em;
   margin: 23px 0;
 }
-.discovery-intro > p {
+.discovery-intro-sticky > p {
   font-size: 15px;
   line-height: 1.9;
   margin-bottom: 30px;
@@ -610,6 +613,9 @@ label,
   margin-top: 10px;
 }
 .discovery-side {
+  align-self: start;
+}
+.discovery-side-sticky {
   position: sticky;
   top: 75px;
   padding-top: 76px;
@@ -619,7 +625,7 @@ label,
   margin: 17px 0;
   line-height: 1.18;
 }
-.discovery-side > p {
+.discovery-side-sticky > p {
   font-size: 13px;
   line-height: 1.9;
   margin-bottom: 12px;
@@ -656,6 +662,9 @@ label,
     padding: 42px 0 72px;
   }
   .discovery-intro {
+    padding-top: 0;
+  }
+  .discovery-intro-sticky {
     padding-top: 54px;
   }
   .discovery-intro h1 {
@@ -663,7 +672,7 @@ label,
     line-height: 1.04;
     margin: 25px 0 22px;
   }
-  .discovery-intro > p {
+  .discovery-intro-sticky > p {
     font-size: 16px;
     line-height: 1.85;
     margin-bottom: 34px;
@@ -716,9 +725,10 @@ label,
     color: white;
   }
   .discovery-side {
-    position: sticky;
-    top: 70px;
     align-self: start;
+  }
+  .discovery-side-sticky {
+    top: 70px;
     padding-top: 67px;
   }
   .discovery-side h2 {
@@ -726,7 +736,7 @@ label,
     line-height: 1.12;
     margin: 19px 0 18px;
   }
-  .discovery-side > p {
+  .discovery-side-sticky > p {
     max-width: 235px;
     font-size: 14px;
     line-height: 1.8;
@@ -1645,6 +1655,10 @@ blockquote span {
   }
   .discovery-intro,
   .discovery-side {
+    padding-top: 0;
+  }
+  .discovery-intro-sticky,
+  .discovery-side-sticky {
     top: 72px;
     padding-top: 36px;
   }

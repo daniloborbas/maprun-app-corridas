@@ -31,33 +31,35 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
   return (
     <div className="discovery-layout">
       <aside className="discovery-intro">
-        <span className="eyebrow green">DESCUBRA NOVOS PERCURSOS</span>
-        <h1>
-          Sua próxima
-          <br />
-          corrida começa
-          <br />
-          <span className="green">aqui.</span>
-        </h1>
-        <p>
-          Um novo destino.
-          <br />
-          Uma nova linha de chegada.
-          <br />
-          Uma história para contar.
-        </p>
-        <LocationPicker />
-        <div className="intro-bottom">
-          <Mountain size={28} />
-          <p>
-            Mais corridas.
+        <div className="discovery-intro-sticky">
+          <span className="eyebrow green">DESCUBRA NOVOS PERCURSOS</span>
+          <h1>
+            Sua próxima
             <br />
-            <strong>Mais histórias.</strong>
+            corrida começa
+            <br />
+            <span className="green">aqui.</span>
+          </h1>
+          <p>
+            Um novo destino.
+            <br />
+            Uma nova linha de chegada.
+            <br />
+            Uma história para contar.
           </p>
+          <LocationPicker />
+          <div className="intro-bottom">
+            <Mountain size={28} />
+            <p>
+              Mais corridas.
+              <br />
+              <strong>Mais histórias.</strong>
+            </p>
+          </div>
+          <Link className="subtle-link" href="/buscar">
+            Encontre uma prova <ArrowUpRight size={17} />
+          </Link>
         </div>
-        <Link className="subtle-link" href="/buscar">
-          Encontre uma prova <ArrowUpRight size={17} />
-        </Link>
       </aside>
       <section className="discovery-main" aria-label="Descobrir corridas">
         <div className="mobile-discovery-title">
@@ -126,31 +128,33 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
         </div>
       </section>
       <aside className="discovery-side">
-        <MapPin size={22} className="green" />
-        <h2>
-          Vale a pena
-          <br />
-          ir mais longe.
-        </h2>
-        <p>Encontre corridas que também são um convite para conhecer novos lugares.</p>
-        <Link href="/buscar" className="text-button">
-          Explorar destinos <ArrowUpRight size={16} />
-        </Link>
-        <div className="side-note">
-          ESCOLHA SEU DESAFIO
-          <Link href="/buscar?distance=5">
-            Os primeiros 5 km <span>↗</span>
+        <div className="discovery-side-sticky">
+          <MapPin size={22} className="green" />
+          <h2>
+            Vale a pena
+            <br />
+            ir mais longe.
+          </h2>
+          <p>Encontre corridas que também são um convite para conhecer novos lugares.</p>
+          <Link href="/buscar" className="text-button">
+            Explorar destinos <ArrowUpRight size={16} />
           </Link>
-          <Link href="/buscar?distance=21">
-            Sua próxima meia <span>↗</span>
-          </Link>
-          <Link href="/buscar?category=trail">
-            Fora do asfalto <span>↗</span>
+          <div className="side-note">
+            ESCOLHA SEU DESAFIO
+            <Link href="/buscar?distance=5">
+              Os primeiros 5 km <span>↗</span>
+            </Link>
+            <Link href="/buscar?distance=21">
+              Sua próxima meia <span>↗</span>
+            </Link>
+            <Link href="/buscar?category=trail">
+              Fora do asfalto <span>↗</span>
+            </Link>
+          </div>
+          <Link className="privacy-link" href="/privacidade">
+            Privacidade
           </Link>
         </div>
-        <Link className="privacy-link" href="/privacidade">
-          Privacidade
-        </Link>
       </aside>
     </div>
   );
