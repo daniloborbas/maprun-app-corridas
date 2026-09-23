@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Compass, Search, Bookmark, UserRound, Mountain } from 'lucide-react';
+import { Compass, Search, Bookmark, UserRound, Mountain, Megaphone } from 'lucide-react';
 import { LocationPicker } from '@/features/location/location-picker';
 import { UserAvatar } from '@/components/user-avatar';
 import { useApp } from '@/components/app-provider';
@@ -41,7 +41,7 @@ export function Navigation() {
           <span>Buscar corridas por nome, cidade ou estado…</span>
         </Link>
         <LocationPicker />
-        <Link href="/organizadores" className="desktop-organizer-link">Divulgue sua corrida</Link>
+        <Link href="/organizadores" className="desktop-organizer-link"><Megaphone size={16} />Divulgue sua corrida</Link>
         <Link href="/perfil" className="desktop-profile-link" aria-label={user ? 'Abrir perfil' : 'Entrar ou criar conta'}>{user ? <UserAvatar name={user.name} avatarUrl={user.avatarUrl} googleAvatarUrl={user.googleAvatarUrl} size={36} /> : <UserRound size={22} />}</Link>
         <span className="brand-note">Mais corridas. Mais histórias.</span>
       </header>
