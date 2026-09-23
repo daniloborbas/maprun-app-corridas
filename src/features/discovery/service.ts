@@ -35,14 +35,15 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   try {
     const { data: pendingRows, error: pendingError } = await client.from('discovered_events').select('id,source_id,source_url,name,raw_title,event_date,registration_url,status,quality_status,enriched_at').eq('status','pending').limit(5000);
     if (pendingError) throw pendingError;
-    for (const row of pendingRows || []) {
-      const candidate = { ...row, status: 'pending' as const };
+      const sourceById = new Map(sources.map((source) => [source.id, source]));
+      for (const row of pendingRows || []) {
+        const candidate = { ...row, status: 'pending' as const };
       if (candidate.event_date && Date.parse(candidate.event_date) < Date.now()) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored' }).eq('id', candidate.id); continue; }
       if (classifyDiscoveryCandidate(candidate) !== 'EVENT') { ignored++; await client.from('discovered_events').update({ status:'ignored' }).eq('id', candidate.id); }
       else if (enrichmentBudget > 0 && (!candidate.enriched_at || Date.now() - Date.parse(candidate.enriched_at) > 24 * 60 * 60_000)) {
         enrichmentBudget--;
         try {
-          const result = await enrichDiscoveredEvent(candidate);
+            const result = await enrichDiscoveredEvent(candidate, sourceById.get(candidate.source_id)?.auto_ready_allowed === true);
           if (result.past) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored', enriched_at:new Date().toISOString() }).eq('id', candidate.id); continue; }
           await client.from('discovered_events').update({ ...result.candidate, quality_status:result.qualityStatus }).eq('id', candidate.id);
           enriched++;
@@ -71,7 +72,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
           if (enrichmentBudget > 0) {
             enrichmentBudget--;
             try {
-              const result = await enrichDiscoveredEvent(candidate);
+                const result = await enrichDiscoveredEvent(candidate, source.auto_ready_allowed === true);
               if (result.past) { pastIgnored++; continue; }
               enrichedCandidate = { ...candidate, ...result.candidate };
               quality_status = result.qualityStatus;

@@ -7,12 +7,12 @@ export interface EnrichmentResult {
   past: boolean;
 }
 
-export function qualityForDraft(draft: ImportedEventDraft): DiscoveryQualityStatus {
+export function qualityForDraft(draft: ImportedEventDraft, autoReadyAllowed = true): DiscoveryQualityStatus {
   if (!draft.name || !draft.startDate || !draft.city || !draft.state) return 'incomplete';
-  return 'ready';
+  return autoReadyAllowed ? 'ready' : 'incomplete';
 }
 
-export async function enrichDiscoveredEvent(candidate: DiscoveredEventCandidate): Promise<EnrichmentResult> {
+export async function enrichDiscoveredEvent(candidate: DiscoveredEventCandidate, autoReadyAllowed = true): Promise<EnrichmentResult> {
   const draft = await fetchEventPage(candidate.source_url);
   const past = Boolean(draft.startDate && Date.parse(draft.startDate) < Date.now());
   return {
@@ -27,7 +27,7 @@ export async function enrichDiscoveredEvent(candidate: DiscoveredEventCandidate)
       raw_title: draft.name || candidate.raw_title || null,
       enriched_at: new Date().toISOString(),
     },
-    qualityStatus: qualityForDraft(draft),
+    qualityStatus: qualityForDraft(draft, autoReadyAllowed),
     past,
   };
 }

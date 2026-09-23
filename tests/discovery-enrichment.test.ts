@@ -5,6 +5,8 @@ const base = { name:'Corrida', slug:'corrida', shortDescription:'', description:
 
 describe('discovery enrichment quality', () => {
   it('marks a complete future draft ready', () => expect(qualityForDraft(base)).toBe('ready'));
+  it('keeps a complete draft incomplete when the source cannot auto-ready', () => expect(qualityForDraft(base, false)).toBe('incomplete'));
+  it('allows a complete draft to become ready for an explicitly trusted source', () => expect(qualityForDraft(base, true)).toBe('ready'));
   it('marks missing location incomplete', () => expect(qualityForDraft({...base, city:''})).toBe('incomplete'));
   it('marks missing date incomplete', () => expect(qualityForDraft({...base, startDate:null})).toBe('incomplete'));
 });
