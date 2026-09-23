@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ArrowUpRight, CalendarDays, Clock3, MapPin, Mountain, Route } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, CalendarDays, MapPin, Mountain } from 'lucide-react';
 import type { RaceEvent, DiscoveryQuery } from '@/features/events/types';
 import { getDiscoveryFeed } from '@/features/events/discovery';
 import { useApp } from '@/components/app-provider';
@@ -9,17 +9,13 @@ import { LocationPicker } from '@/features/location/location-picker';
 import { DiscoveryEventCard } from '@/components/event-card';
 import { EventListCard } from '@/components/event-card';
 import { EventCover } from '@/components/event-cover';
-import { EventActions } from '@/components/event-actions';
-import { formatDate, formatMoney, isEnded } from '@/features/events/discovery';
-import { resolveRegistrationDestination } from '@/features/events/registration';
-import { sanitizeEventText } from '@/features/events/text';
+import { formatDate, formatMoney } from '@/features/events/discovery';
 import { EmptyState } from '@/components/empty-state';
 export function DiscoveryView({ events }: { events: RaceEvent[] }) {
   const { location } = useApp();
   const [category, setCategory] = useState(''),
     [sort, setSort] = useState<DiscoveryQuery['sort']>('date'),
     [limit, setLimit] = useState(4);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const filterRailRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const rail = filterRailRef.current;
@@ -41,7 +37,6 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
     () => getDiscoveryFeed(events, { location: location || undefined, radius: location?.radiusKm, category, sort }),
     [events, location, category, sort],
   );
-  const selected = feed.find((event) => event.id === selectedId) || feed[0];
   return (
     <div className="discovery-layout">
       <aside className="discovery-intro">
@@ -153,7 +148,7 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
           </aside>
           <div className="desktop-race-grid">
             {feed.slice(0, 6).map((event) => (
-              <button className={`desktop-race-card${selected?.id === event.id ? ' selected' : ''}`} key={event.id} onClick={() => setSelectedId(event.id)}>
+              <article className="desktop-race-card" key={event.id}>
                 <span className="desktop-race-image"><EventCover event={event} sizes="(min-width: 1440px) 24vw, 34vw" />{event.distance_km !== undefined && <span className="desktop-distance-overlay">{Math.round(event.distance_km)} km de você</span>}</span>
                 <div className="desktop-race-card-content">
                   <h2>{event.name}</h2>
@@ -161,12 +156,11 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
                   <p><CalendarDays size={14} />{formatDate(event.start_date)}</p>
                   <div className="desktop-distance-badges">{event.event_distances.slice(0, 4).map((distance) => <span key={distance.label}>{distance.label}</span>)}{event.event_distances.length > 4 && <span>+{event.event_distances.length - 4}</span>}</div>
                   {event.price_from !== null && <strong>{event.price_from === 0 ? 'Gratuito' : `A partir de ${formatMoney(event.price_from)}`}</strong>}
-                  <span className="desktop-card-link">Ver detalhes <ArrowRight size={14} /></span>
+                  <a className="desktop-card-link" href={`/corrida/${event.slug}`} target="_blank" rel="noopener noreferrer">Mais detalhes <ArrowRight size={14} /></a>
                 </div>
-              </button>
+              </article>
             ))}
           </div>
-          {selected && <DesktopRacePanel event={selected} />}
         </div>
         <div className="desktop-discovery-grid">
           <div className="desktop-featured">
@@ -232,28 +226,5 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
         </div>
       </aside>
     </div>
-  );
-}
-
-function DesktopRacePanel({ event }: { event: RaceEvent }) {
-  const ended = isEnded(event);
-  return (
-    <aside className="desktop-race-panel">
-      <span className="desktop-race-panel-image"><EventCover event={event} priority sizes="360px" /></span>
-      <div className="desktop-race-panel-content">
-        <span className="eyebrow green">{event.event_category === 'trail' ? 'TRAIL RUN' : 'CORRIDA DE RUA'}</span>
-        <h2>{event.name}</h2>
-        <p><MapPin size={15} />{event.city} · {event.state}</p>
-        <p><CalendarDays size={15} />{formatDate(event.start_date)}</p>
-        <p><Clock3 size={15} />Largada às {new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }).format(new Date(event.start_date))}</p>
-        <div className="desktop-distance-badges">{event.event_distances.map((distance) => <span key={distance.label}><Route size={13} />{distance.label}</span>)}</div>
-        {sanitizeEventText(event.short_description) && <p className="desktop-panel-description">{sanitizeEventText(event.short_description)}</p>}
-        {event.organizer_name && <p className="desktop-panel-organizer">Organização<br /><strong>{event.organizer_name}</strong></p>}
-        <div className="desktop-panel-actions">
-          {resolveRegistrationDestination(event) && !ended ? <a className="button" href={`/api/registration/${event.id}`}>Inscrever-se <ArrowRight size={17} /></a> : <button className="button" disabled>{ended ? 'Evento encerrado' : 'Inscrições em breve'}</button>}
-          <EventActions event={event} />
-        </div>
-      </div>
-    </aside>
   );
 }

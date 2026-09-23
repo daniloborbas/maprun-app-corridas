@@ -741,15 +741,14 @@ label,
   .feed-toolbar .sort-select { flex: 0 0 auto; min-width: 145px; }
   .desktop-experience-grid {
     display: grid;
-    grid-template-columns: 190px minmax(0, 1fr) 350px;
+    grid-template-columns: 210px minmax(0, 1fr);
     gap: 24px;
     align-items: start;
   }
   .desktop-nav-panel,
   .desktop-race-grid,
   .desktop-race-panel { min-width: 0; }
-  .desktop-nav-panel,
-  .desktop-race-panel { position: sticky; top: 112px; }
+  .desktop-nav-panel { position: sticky; top: 112px; }
   .desktop-nav-panel nav,
   .desktop-nav-group { display: grid; gap: 6px; }
   .desktop-nav-panel nav a,
@@ -969,7 +968,7 @@ label,
     width: min(100% - 112px, 1400px);
     padding-top: 46px;
   }
-  .desktop-experience-grid { grid-template-columns: 200px minmax(0, 1fr) 370px; gap: 28px; }
+  .desktop-experience-grid { grid-template-columns: 210px minmax(0, 1fr); gap: 28px; }
   .desktop-race-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .discovery-intro-sticky {
     left: max(32px, calc((100vw - 1400px) / 2));
@@ -1884,12 +1883,11 @@ blockquote span {
   .discovery-intro,
   .discovery-side { display: none; }
   .desktop-page-title { display: block; margin: 0 0 16px; font-family: var(--font-display); font-size: 30px; }
-  .desktop-experience-grid { display: grid; grid-template-columns: 165px minmax(0, 1fr) 290px; gap: 18px; align-items: start; }
+  .desktop-experience-grid { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 24px; align-items: start; }
   .desktop-nav-panel,
   .desktop-race-grid,
   .desktop-race-panel { min-width: 0; }
-  .desktop-nav-panel,
-  .desktop-race-panel { position: sticky; top: 104px; }
+  .desktop-nav-panel { position: sticky; top: 104px; }
   .desktop-nav-panel nav,
   .desktop-nav-group { display: grid; gap: 4px; }
   .desktop-nav-panel nav a,
