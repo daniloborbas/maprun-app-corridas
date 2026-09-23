@@ -9,6 +9,7 @@ import { LocationPicker } from '@/features/location/location-picker';
 import { DiscoveryEventCard } from '@/components/event-card';
 import { EventListCard } from '@/components/event-card';
 import { EventCover } from '@/components/event-cover';
+import { EventActions } from '@/components/event-actions';
 import { formatDate, formatMoney } from '@/features/events/discovery';
 import { EmptyState } from '@/components/empty-state';
 export function DiscoveryView({ events }: { events: RaceEvent[] }) {
@@ -135,6 +136,7 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
                   {event.price_from !== null && <strong>{event.price_from === 0 ? 'Gratuito' : `A partir de ${formatMoney(event.price_from)}`}</strong>}
                   <a className="desktop-card-link" href={`/corrida/${event.slug}`} target="_blank" rel="noopener noreferrer">Mais detalhes <ArrowRight size={14} /></a>
                   </div>
+                  <EventActions event={event} />
                 </div>
               </article>
             ))}
