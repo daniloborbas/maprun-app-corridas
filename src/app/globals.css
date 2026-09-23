@@ -1726,17 +1726,41 @@ blockquote span {
     display: none;
   }
   .mobile-discovery-title {
+    display: grid;
+    gap: 5px;
+    padding: 16px 19px 8px;
+  }
+  .mobile-discovery-brand-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 19px 2px;
     gap: 10px;
+  }
+  .mobile-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .mobile-discovery-title p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
   }
   .mobile-discovery-title h1 {
     font-size: 23px;
     letter-spacing: -0.04em;
   }
   .mobile-discovery-title .location-trigger {
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid #ccebd6;
+    border-radius: 999px;
+    background: #f0fbf3;
+    color: #14733c;
     font-size: 11px;
   }
   .mobile-discovery-title .location-popover {
@@ -1749,13 +1773,21 @@ blockquote span {
     gap: 4px;
   }
   .category-tabs {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
     gap: 2px;
   }
+  .category-tabs::-webkit-scrollbar { display: none; }
   .category-tabs button {
     font-size: 12px;
-    padding: 6px 11px;
+    padding: 8px 12px;
+    border: 1px solid #e6ebe7;
+    background: #f8faf8;
     min-height: 35px;
   }
+  .category-tabs button.active { border-color: var(--green); }
   .sort-select {
     font-size: 10px;
     max-width: 112px;

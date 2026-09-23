@@ -50,8 +50,15 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
       </aside>
       <section className="discovery-main" aria-label="Descobrir corridas">
         <div className="mobile-discovery-title">
+          <div className="mobile-discovery-brand-row">
+            <Link href="/" className="mobile-brand" aria-label="MapRun — início">
+              <Mountain size={20} strokeWidth={2.5} />
+              <span>Map<span className="green">Run</span></span>
+            </Link>
+            <LocationPicker />
+          </div>
           <h1>Descobrir</h1>
-          <LocationPicker />
+          <p>Encontre sua próxima corrida</p>
         </div>
         <div className="feed-toolbar">
           <div className="category-tabs" aria-label="Categorias">
