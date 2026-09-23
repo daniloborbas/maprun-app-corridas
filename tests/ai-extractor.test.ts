@@ -17,4 +17,19 @@ describe('extrator de IA isolado', () => {
     const provider=await extractRaceEventWithAi(input,{extract:async()=>{throw new Error('offline');}}); expect(provider.ok ? '' : provider.error).toBe('provider_error');
     const timeout=await extractRaceEventWithAi({...input,timeoutMs:1},{extract:async({signal})=>{await new Promise(resolve=>setTimeout(resolve,30)); if(signal.aborted) throw new Error('aborted'); return {outputText:JSON.stringify(valid)};}}); expect(timeout.ok ? '' : timeout.error).toBe('timeout');
   });
+  it('preserva metadados seguros do erro do provider e mascara secrets', async () => {
+    const result=await extractRaceEventWithAi({sourceUrl:'https://example.com/race',pageText:'Prova',deterministicEvent:deterministic},{extract:async()=>{const error=Object.assign(new Error('bad sk-test-secret'),{status:429,code:'insufficient_quota',type:'invalid_request_error',request_id:'req_test'}); throw error;}});
+    expect(result.ok).toBe(false); if(!result.ok){expect(result.metadata).toEqual({status:429,code:'insufficient_quota',providerType:'invalid_request_error',requestId:'req_test',safeMessage:'bad [redacted]'}); expect(result.message).not.toContain('sk-test-secret');}
+  });
+  it.each([
+    [401, undefined, 'authentication_error'],
+    [400, 'invalid_request', 'invalid_request_error'],
+  ])('preserva status e tipo em erro HTTP %s', async (status, code, type) => {
+    const result=await extractRaceEventWithAi({sourceUrl:'https://example.com/race',pageText:'Prova',deterministicEvent:deterministic},{extract:async()=>{throw Object.assign(new Error('provider failure'),{status,code,type,request_id:'req_safe'});}});
+    expect(result.ok).toBe(false); if(!result.ok) expect(result.metadata).toMatchObject({status,code,providerType:type,requestId:'req_safe'});
+  });
+  it('trata erro JavaScript genérico como provider_error', async () => {
+    const result=await extractRaceEventWithAi({sourceUrl:'https://example.com/race',pageText:'Prova',deterministicEvent:deterministic},{extract:async()=>{throw new Error('offline');}});
+    expect(result).toMatchObject({ok:false,error:'provider_error',message:'offline'});
+  });
 });

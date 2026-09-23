@@ -67,7 +67,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
             const source = sourceById.get(candidate.source_id);
             const result = await enrichDiscoveredEvent(candidate, source?.auto_ready_allowed === true, client, source?.trust_level ?? 'C', aiOptions());
             recordAi(result.aiFallback);
-            if (result.aiFallback.attempted) console.info('[MapRun discovery] AI fallback used', { candidateId:candidate.id, success:result.aiFallback.success, errorType:result.aiFallback.errorType });
+            if (result.aiFallback.attempted) console.info('[MapRun discovery] AI fallback used', { candidateId:candidate.id, success:result.aiFallback.success, errorType:result.aiFallback.errorType, ...result.aiFallback.errorMetadata });
             if (result.aiFallback.attempted) aiBudget--;
           if (result.past) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored', enriched_at:new Date().toISOString() }).eq('id', candidate.id); continue; }
           await client.from('discovered_events').update({ ...result.candidate, quality_status:result.qualityStatus }).eq('id', candidate.id);
@@ -96,7 +96,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
             try {
                 const result = await enrichDiscoveredEvent(candidate, source.auto_ready_allowed === true, client, source.trust_level ?? 'C', aiOptions());
               recordAi(result.aiFallback);
-              if (result.aiFallback.attempted) console.info('[MapRun discovery] AI fallback used', { candidateId:candidate.id, success:result.aiFallback.success, errorType:result.aiFallback.errorType });
+              if (result.aiFallback.attempted) console.info('[MapRun discovery] AI fallback used', { candidateId:candidate.id, success:result.aiFallback.success, errorType:result.aiFallback.errorType, ...result.aiFallback.errorMetadata });
               if (result.aiFallback.attempted) aiBudget--;
               if (result.past) { pastIgnored++; continue; }
               enrichedCandidate = { ...candidate, ...result.candidate };

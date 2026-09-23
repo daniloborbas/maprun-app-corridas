@@ -30,7 +30,8 @@ const aiOutputSchema = z.object({
 export type AiExtractionErrorCode = 'missing_api_key'|'timeout'|'provider_error'|'invalid_response'|'refusal'|'schema_validation_error';
 export interface AiRaceExtractionInput { sourceUrl: string; pageText: string; deterministicEvent: ExtractedRaceEvent; deterministicFieldSources?: ExtractionFieldSources; timeoutMs?: number; }
 export interface AiRaceExtraction { event: ExtractedRaceEvent; evidence: { date: string|null; city: string|null; state: string|null; distances: string|null; organizerName: string|null }; fieldSources: ExtractionFieldSources; conflicts: ExtractionConflict[]; usage?: { inputTokens?: number; outputTokens?: number }; }
-export interface AiExtractionFailure { ok: false; error: AiExtractionErrorCode; message: string; }
+export interface AiProviderErrorMetadata { status?: number; code?: string; providerType?: string; requestId?: string; safeMessage?: string; }
+export interface AiExtractionFailure { ok: false; error: AiExtractionErrorCode; message: string; metadata?: AiProviderErrorMetadata; }
 export interface AiExtractionSuccess { ok: true; result: AiRaceExtraction; }
 export type AiExtractionResult = AiExtractionSuccess | AiExtractionFailure;
 export interface AiExtractionProvider { extract(input: { model: string; instructions: string; content: string; schema: typeof extractionSchema; signal: AbortSignal }): Promise<{ outputText?: string; refusal?: string; usage?: { inputTokens?: number; outputTokens?: number } }>; }
@@ -66,12 +67,24 @@ export async function extractRaceEventWithAi(input: AiRaceExtractionInput, provi
     return buildResult(parsed.data, input, response.usage);
   } catch (error) {
     if (controller.signal.aborted) return { ok: false, error: 'timeout', message: 'Tempo limite da extração de IA excedido.' };
-    if (error instanceof AiProviderError) return { ok: false, error: 'provider_error', message: error.message };
-    return { ok: false, error: 'provider_error', message: 'Falha controlada no provider de extração.' };
+    if (error instanceof AiProviderError) return { ok: false, error: 'provider_error', message: error.metadata.safeMessage ?? error.message, metadata: error.metadata };
+    const metadata = providerMetadata(error);
+    return { ok: false, error: 'provider_error', message: metadata.safeMessage ?? 'Falha controlada no provider de extração.', metadata };
   } finally { clearTimeout(timer); }
 }
 
-class AiProviderError extends Error {}
+class AiProviderError extends Error { constructor(public readonly metadata: AiProviderErrorMetadata) { super(metadata.safeMessage ?? 'Provider indisponível.'); } }
+type OpenAiErrorLike = { status?: unknown; code?: unknown; type?: unknown; request_id?: unknown; requestId?: unknown; message?: unknown };
+function safeString(value: unknown, max: number) { return typeof value === 'string' ? value.slice(0, max).replace(/(?:sk-[A-Za-z0-9_-]+|Bearer\s+[A-Za-z0-9._-]+)/gi, '[redacted]') : undefined; }
+function providerMetadata(error: unknown): AiProviderErrorMetadata {
+  const candidate = typeof error === 'object' && error !== null ? error as OpenAiErrorLike : {};
+  const status = typeof candidate.status === 'number' ? candidate.status : undefined;
+  const code = safeString(candidate.code, 96);
+  const providerType = safeString(candidate.type, 96);
+  const requestId = safeString(candidate.request_id ?? candidate.requestId, 128);
+  const safeMessage = safeString(candidate.message, 512);
+  return { status, code, providerType, requestId, safeMessage };
+}
 function createOpenAiProvider(): AiExtractionProvider {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new MissingApiKeyError();
@@ -81,7 +94,7 @@ function createOpenAiProvider(): AiExtractionProvider {
       const response = await client.responses.create({ model, instructions: system, input: content, text: { format: { type: 'json_schema', name: 'maprun_race_extraction', strict: true, schema } }, temperature: 0 }, { signal });
       const refused = response.output.some(item => item.type === 'message' && item.content.some(part => part.type === 'refusal'));
       return { outputText: response.output_text, refusal: refused ? 'refusal' : undefined, usage: response.usage ? { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens } : undefined };
-    } catch (error) { throw new AiProviderError(error instanceof Error ? error.message : 'Provider indisponível.'); }
+    } catch (error) { throw new AiProviderError(providerMetadata(error)); }
   } };
 }
 class MissingApiKeyError extends Error {}

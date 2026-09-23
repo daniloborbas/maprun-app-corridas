@@ -1,5 +1,5 @@
 import { fetchEventPage, evaluateExtractionCompleteness, type ImportedEventDraft, type ExtractionResult, type ExtractedRaceEvent, type ExtractionConflict } from '@/features/importer/url-import';
-import { extractRaceEventWithAi } from '@/features/importer/ai-extractor';
+import { extractRaceEventWithAi, type AiProviderErrorMetadata } from '@/features/importer/ai-extractor';
 import type { DiscoveryQualityStatus, DiscoveredEventCandidate } from './types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { geocodeEventLocation } from '@/features/geocoding/service';
@@ -10,7 +10,7 @@ export interface EnrichmentResult {
   qualityStatus: DiscoveryQualityStatus;
   past: boolean;
   extraction: Pick<ExtractionResult, 'event'|'fieldSources'|'extractionQuality'|'shouldUseAiFallback'>;
-  aiFallback: { attempted: boolean; success: boolean; errorType?: string; usage?: { inputTokens?: number; outputTokens?: number } };
+  aiFallback: { attempted: boolean; success: boolean; errorType?: string; errorMetadata?: AiProviderErrorMetadata; usage?: { inputTokens?: number; outputTokens?: number } };
 }
 export interface AiFallbackOptions { enabled?: boolean; allowCall?: boolean; }
 
@@ -33,7 +33,7 @@ export async function enrichDiscoveredEvent(candidate: DiscoveredEventCandidate,
       const merged = mergeAiExtraction(draft, extraction, aiResult.result.event, aiResult.result.conflicts);
       draft.name=merged.draft.name; draft.startDate=merged.draft.startDate; draft.startTime=merged.draft.startTime; draft.city=merged.draft.city; draft.state=merged.draft.state; draft.venue=merged.draft.venue; draft.address=merged.draft.address; draft.distances=merged.draft.distances; draft.priceFrom=merged.draft.priceFrom; draft.organizerName=merged.draft.organizerName; draft.registrationUrl=merged.draft.registrationUrl; draft.coverImageUrl=merged.draft.coverImageUrl;
       extraction = merged.extraction;
-    } else aiFallback.errorType = aiResult.error;
+    } else { aiFallback.errorType = aiResult.error; aiFallback.errorMetadata = aiResult.metadata; }
   }
   const past = Boolean(draft.startDate && Date.parse(draft.startDate) < Date.now());
   const coordinates = !candidate.latitude && !candidate.longitude && draft.city && draft.state ? await geocodeEventLocation({ address: draft.address, venue: draft.venue, city: draft.city, state: draft.state }, { client }) : null;
