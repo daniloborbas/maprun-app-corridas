@@ -1,11 +1,13 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Plus, Trash2 } from 'lucide-react';
 import { saveAdminEvent, deleteAdminEvent } from './actions';
 import type { RaceEvent, EventDistance } from '@/features/events/types';
 import { generateEventEditorialContent } from '@/features/events/editorial';
 import { classifyRegistrationUrl, resolveRegistrationDestination } from '@/features/events/registration';
+import { EVENT_FALLBACK_IMAGES } from '@/features/events/fallback-images';
 export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 const toLocal = (v?: string | null) =>
   v ? new Date(new Date(v).getTime() - 3 * 3600000).toISOString().slice(0, 16) : '';
@@ -20,6 +22,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
   const [existingSources] = useState(() => event?.event_sources?.map((source) => ({ source_name: source.source_name, source_url: source.source_url, source_method: source.source_method || source.import_method || 'manual' })) || []);
   const [officialUrl, setOfficialUrl] = useState(event?.official_url || '');
   const [registrationUrl, setRegistrationUrl] = useState(event?.registration_url || '');
+  const [fallbackImageKey, setFallbackImageKey] = useState(event?.fallback_image_key || null);
   const [message, setMessage] = useState(''),
     [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}),
     [busy, setBusy] = useState(false),
@@ -76,6 +79,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       price_from: num('price_from'),
       cover_image_url: text('cover_image_url') || '/images/runners.jpg',
       cover_image_source: text('cover_image_source'),
+      fallback_image_key: fallbackImageKey,
       has_usable_official_image: data.has('has_usable_official_image'),
       short_tagline: text('short_tagline'),
       status: forceDraft === 'finished' ? 'finished' : forceDraft ? 'draft' : text('status'),
@@ -243,6 +247,22 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
             <option value="generated">Gerada</option>
           </select>
         </label>
+        <div className="wide fallback-library">
+          <strong>Biblioteca de capas fallback</strong>
+          <small>Escolha uma capa manual ou volte para a seleção automática contextual.</small>
+          <button type="button" className="text-button" onClick={() => setFallbackImageKey(null)}>Usar seleção automática</button>
+          {fallbackImageKey ? (() => {
+            const selected = EVENT_FALLBACK_IMAGES.find((image) => image.key === fallbackImageKey);
+            return selected ? <Image className="fallback-preview" src={selected.src} alt="Prévia da capa fallback selecionada" width={360} height={225} sizes="(max-width: 760px) 100vw, 360px" /> : null;
+          })() : null}
+          <div className="fallback-grid">
+            {EVENT_FALLBACK_IMAGES.map((image) => (
+              <button type="button" key={image.key} className={fallbackImageKey === image.key ? 'fallback-choice selected' : 'fallback-choice'} aria-label={`Usar capa ${image.key}`} aria-pressed={fallbackImageKey === image.key} onClick={() => setFallbackImageKey(image.key)}>
+                <Image src={image.src} alt={`Capa ${image.key}`} width={240} height={150} sizes="(max-width: 760px) 50vw, 25vw" />
+              </button>
+            ))}
+          </div>
+        </div>
         <label className="checkbox-label">
           <input
             name="has_usable_official_image"

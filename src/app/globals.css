@@ -2123,3 +2123,45 @@ blockquote span {
     transition: none !important;
   }
 }
+
+.fallback-library {
+  display: grid;
+  gap: 8px;
+}
+.fallback-library small {
+  color: var(--muted);
+}
+.fallback-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+.fallback-choice {
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--pale);
+  cursor: pointer;
+}
+.fallback-choice img,
+.fallback-preview {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+.fallback-choice.selected {
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px rgb(20 209 96 / 25%);
+}
+.fallback-preview {
+  max-width: 360px;
+  border-radius: 12px;
+}
+@media (max-width: 760px) {
+  .fallback-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

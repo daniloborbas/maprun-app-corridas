@@ -200,6 +200,15 @@ describe('origem ativa da capa', () => {
     const { resolveEventImage } = await import('@/features/events/images');
     expect(resolveEventImage({ ...base, cover_image_source: 'fallback' })).not.toBe(base.cover_image_url);
   });
+  it('usa a capa fallback escolhida manualmente', async () => {
+    const { resolveEventImage } = await import('@/features/events/images');
+    expect(resolveEventImage({ ...base, cover_image_source: 'fallback', fallback_image_key: 'trail-mountains' })).toBe('/images/mountains.jpg');
+  });
+  it('ignora uma chave fallback inválida e mantém a seleção automática', async () => {
+    const { resolveEventImage, resolveEventFallbackImage } = await import('@/features/events/images');
+    const automatic = resolveEventFallbackImage(base);
+    expect(resolveEventImage({ ...base, cover_image_source: 'fallback', fallback_image_key: 'missing' })).toBe(automatic);
+  });
   it('escolhe fallback estável e distribui eventos diferentes pelo pool', async () => {
     const { resolveEventFallbackImage, eventFallbackImages } = await import('@/features/events/images');
     const first = resolveEventFallbackImage({ id: 'same', slug: 'prova', name: 'Prova', event_category: 'rua' });

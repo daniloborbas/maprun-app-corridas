@@ -31,6 +31,7 @@ export interface RaceEvent {
   price_from: number | null;
   cover_image_url: string;
   cover_image_source: 'official' | 'generated' | 'fallback';
+  fallback_image_key?: string | null;
   has_usable_official_image: boolean;
   short_tagline: string;
   status: EventStatus;
