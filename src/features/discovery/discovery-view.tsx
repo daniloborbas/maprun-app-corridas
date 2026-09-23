@@ -7,6 +7,7 @@ import { getDiscoveryFeed } from '@/features/events/discovery';
 import { useApp } from '@/components/app-provider';
 import { LocationPicker } from '@/features/location/location-picker';
 import { DiscoveryEventCard } from '@/components/event-card';
+import { EventListCard } from '@/components/event-card';
 import { EmptyState } from '@/components/empty-state';
 export function DiscoveryView({ events }: { events: RaceEvent[] }) {
   const { location } = useApp();
@@ -116,7 +117,24 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
             </select>
           </div>
         </div>
-        <div className="discovery-feed">
+        <div className="desktop-discovery-grid">
+          <div className="desktop-featured">
+            {feed[0] && <DiscoveryEventCard event={feed[0]} index={0} />}
+          </div>
+          <aside className="desktop-upcoming">
+            <div className="desktop-upcoming-heading">
+              <div>
+                <h2>Mais corridas para você</h2>
+                <p>Eventos selecionados com base nos seus interesses.</p>
+              </div>
+              <Link href="/buscar" className="text-button">Ver todas <ArrowUpRight size={16} /></Link>
+            </div>
+            <div className="desktop-upcoming-list">
+              {feed.slice(1, 6).map((event) => <EventListCard key={event.id} event={event} />)}
+            </div>
+          </aside>
+        </div>
+        <div className="discovery-feed mobile-discovery-feed">
           {feed.slice(0, limit).map((event, index) => (
             <DiscoveryEventCard key={event.id} event={event} index={index} />
           ))}

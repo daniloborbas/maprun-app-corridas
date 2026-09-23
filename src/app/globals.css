@@ -320,6 +320,12 @@ label,
   padding: 28px 5.2% 60px;
   align-items: start;
 }
+.desktop-discovery-grid {
+  display: none;
+}
+.mobile-discovery-feed {
+  display: grid;
+}
 .discovery-layout > *,
 .discovery-main,
 .discovery-feed,
@@ -659,12 +665,11 @@ label,
   .discovery-layout {
     width: min(100% - 64px, 1280px);
     max-width: 1280px;
-    grid-template-columns: 260px minmax(0, 600px) 240px;
-    gap: 32px;
+    display: block;
     padding: 42px 0 72px;
   }
   .discovery-intro {
-    padding-top: 0;
+    display: none;
   }
   .discovery-intro-sticky {
     position: fixed;
@@ -690,10 +695,72 @@ label,
   .discovery-main {
     min-width: 0;
     width: 100%;
-    max-width: 600px;
+    max-width: none;
   }
   .discovery-feed {
     gap: 32px;
+  }
+  .desktop-discovery-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(300px, 0.9fr);
+    gap: 32px;
+    align-items: start;
+  }
+  .desktop-featured,
+  .desktop-upcoming {
+    min-width: 0;
+  }
+  .desktop-featured .discovery-card {
+    width: 100%;
+    max-width: 100%;
+  }
+  .desktop-upcoming {
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px;
+    background: #fff;
+  }
+  .desktop-upcoming-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .desktop-upcoming-heading h2 {
+    font-size: 21px;
+    line-height: 1.15;
+    margin: 0 0 5px;
+  }
+  .desktop-upcoming-heading p {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 0;
+  }
+  .desktop-upcoming-heading .text-button {
+    flex: 0 0 auto;
+    font-size: 12px;
+  }
+  .desktop-upcoming-list .event-list-card {
+    min-height: 112px;
+    gap: 12px;
+    padding: 12px 0;
+  }
+  .desktop-upcoming-list .list-image {
+    flex-basis: 104px;
+    min-height: 82px;
+  }
+  .desktop-upcoming-list .list-content h3 {
+    font-size: 14px;
+  }
+  .desktop-upcoming-list .list-content p {
+    font-size: 11px;
+  }
+  .mobile-discovery-feed {
+    display: none;
+  }
+  .discovery-side {
+    display: none;
   }
   .discovery-card {
     width: 100%;
@@ -764,8 +831,7 @@ label,
   .discovery-layout {
     width: min(100% - 112px, 1400px);
     max-width: 1400px;
-    grid-template-columns: 280px minmax(0, 640px) 260px;
-    gap: 40px;
+    width: min(100% - 112px, 1400px);
     padding-top: 46px;
   }
   .discovery-intro-sticky {
@@ -1672,29 +1738,29 @@ blockquote span {
 @media (min-width: 900px) and (max-width: 1199px) {
   .discovery-layout {
     width: min(100% - 48px, 1160px);
-    grid-template-columns: minmax(210px, 0.8fr) minmax(420px, 1.7fr) minmax(190px, 0.8fr);
-    gap: 24px;
+    display: block;
     padding: 34px 0 64px;
   }
   .discovery-intro,
-  .discovery-side {
-    padding-top: 0;
+  .discovery-side { display: none; }
+  .desktop-discovery-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(260px, 0.9fr);
+    gap: 24px;
+    align-items: start;
   }
-  .discovery-intro-sticky,
-  .discovery-side-sticky {
-    position: fixed;
-    top: 72px;
-    padding-top: 36px;
-    z-index: 5;
+  .desktop-featured,
+  .desktop-upcoming { min-width: 0; }
+  .desktop-upcoming {
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 14px;
   }
-  .discovery-intro-sticky {
-    left: max(24px, calc((100vw - 1160px) / 2));
-    width: 210px;
-  }
-  .discovery-side-sticky {
-    right: max(24px, calc((100vw - 1160px) / 2));
-    width: 190px;
-  }
+  .desktop-upcoming-heading h2 { font-size: 18px; }
+  .desktop-upcoming-list .list-image { flex-basis: 90px; min-height: 72px; }
+  .desktop-upcoming-list .list-content h3 { font-size: 13px; }
+  .desktop-upcoming-list .list-content p { font-size: 10px; }
+  .mobile-discovery-feed { display: none; }
   .discovery-intro h1 {
     font-size: clamp(38px, 4.2vw, 50px);
   }
@@ -1710,6 +1776,12 @@ blockquote span {
   }
   .discovery-side {
     display: none;
+  }
+  .desktop-discovery-grid {
+    display: none;
+  }
+  .mobile-discovery-feed {
+    display: grid;
   }
   .brand-note {
     display: none;
