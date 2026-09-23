@@ -307,6 +307,7 @@ label,
   font-size: 13px;
   white-space: nowrap;
 }
+.desktop-profile-link { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #eef2ef; color: var(--ink); }
 .desktop-header .brand-note {
   display: none;
 }
@@ -747,18 +748,26 @@ label,
   .desktop-nav-panel,
   .desktop-race-grid,
   .desktop-race-panel { min-width: 0; }
+  .desktop-nav-panel,
+  .desktop-race-panel { position: sticky; top: 112px; }
   .desktop-nav-panel nav,
   .desktop-nav-group { display: grid; gap: 5px; }
   .desktop-nav-panel nav a,
   .desktop-nav-group a,
+  .desktop-nav-group button,
   .desktop-nav-group > span {
     padding: 10px 12px;
     border-radius: 10px;
     color: var(--muted);
     font-size: 13px;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
   }
   .desktop-nav-panel nav a.active,
-  .desktop-nav-group a:hover { background: var(--pale); color: var(--green-dark); }
+  .desktop-nav-group a:hover,
+  .desktop-nav-group button:hover { background: var(--pale); color: var(--green-dark); }
   .desktop-nav-group { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
   .desktop-nav-group > span { color: var(--ink); font-weight: 600; }
   .desktop-location-panel { display: grid; gap: 5px; margin-bottom: 8px; }
@@ -1873,11 +1882,15 @@ blockquote span {
   .desktop-nav-panel,
   .desktop-race-grid,
   .desktop-race-panel { min-width: 0; }
+  .desktop-nav-panel,
+  .desktop-race-panel { position: sticky; top: 104px; }
   .desktop-nav-panel nav,
   .desktop-nav-group { display: grid; gap: 4px; }
   .desktop-nav-panel nav a,
   .desktop-nav-group a,
+  .desktop-nav-group button,
   .desktop-nav-group > span { padding: 8px; font-size: 11px; color: var(--muted); }
+  .desktop-nav-group button { text-align: left; background: transparent; border: 0; cursor: pointer; }
   .desktop-nav-group { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 12px; }
   .desktop-location-panel { display: grid; gap: 4px; margin-bottom: 5px; }
   .desktop-location-panel > span { font-size: 9px; color: var(--muted); }

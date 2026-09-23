@@ -142,6 +142,13 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
               <Link href="/?sort=nearby">Perto de você</Link>
               <Link href="/?sort=date">Próximas datas</Link>
             </div>
+            <div className="desktop-nav-group desktop-modalities">
+              <span>Modalidades</span>
+              <button type="button" onClick={() => setCategory('rua')}>Rua</button>
+              <button type="button" onClick={() => setCategory('trail')}>Trail</button>
+              <button type="button" onClick={() => setCategory('mountain')}>Montanha</button>
+              <button type="button" onClick={() => setCategory('virtual')}>Virtual</button>
+            </div>
           </aside>
           <div className="desktop-race-grid">
             {feed.slice(0, 6).map((event) => (

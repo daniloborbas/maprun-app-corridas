@@ -39,6 +39,7 @@ export function Navigation() {
         </Link>
         <LocationPicker />
         <Link href="/admin" className="desktop-organizer-link">Para organizadores</Link>
+        <Link href="/perfil" className="desktop-profile-link" aria-label="Abrir perfil"><UserRound size={22} /></Link>
         <span className="brand-note">Mais corridas. Mais histórias.</span>
       </header>
       <nav className="bottom-nav" aria-label="Navegação mobile">
