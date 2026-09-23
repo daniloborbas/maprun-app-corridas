@@ -767,8 +767,6 @@ label,
   .feed-toolbar .category-tabs button,
   .feed-toolbar .sort-select { min-height: 38px; border-radius: 999px; }
   .feed-toolbar .sort-select { flex: 0 0 auto; min-width: 145px; }
-  .saved-tabs-wrapper { width: 100%; display: flex; justify-content: center; }
-  .saved-tabs-wrapper .segmented-control { width: min(100%, 440px); }
   .desktop-experience-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -1220,6 +1218,14 @@ label,
   max-width: 440px;
 }
 .saved-tabs-wrapper { display: contents; }
+@media (min-width: 1200px) {
+  .saved-tabs-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  .saved-tabs-wrapper .segmented-control { width: min(100%, 440px); }
+}
 .segmented-control button {
   flex: 1;
   border-radius: 25px;
