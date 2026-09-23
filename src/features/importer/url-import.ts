@@ -13,7 +13,7 @@ export interface ImportedEventDraft {
   distances: { label: string; distance_km: number | null; category: string }[]; sourceUrl: string; fieldsFound: string[];
   extraction?: Pick<ExtractionResult, 'event'|'fieldSources'|'extractionQuality'|'shouldUseAiFallback'>;
 }
-export type ExtractionSource = 'json_ld' | 'embedded_data' | 'html' | 'url' | 'derived';
+export type ExtractionSource = 'json_ld' | 'embedded_data' | 'html' | 'url' | 'derived' | 'ai';
 export type ExtractionField = keyof Pick<ImportedEventDraft, 'name'|'startDate'|'startTime'|'city'|'state'|'venue'|'address'|'distances'|'priceFrom'|'organizerName'|'registrationUrl'|'coverImageUrl'>;
 export type ExtractionFieldSources = Partial<Record<ExtractionField, ExtractionSource>>;
 export interface ExtractionConflict { field: ExtractionField; values: { value: string; source: ExtractionSource }[]; }
