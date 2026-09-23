@@ -16,7 +16,7 @@ const now = new Date('2026-09-21T12:00:00Z');
 describe('event images', () => {
   it('keeps official images and deterministically varies fallbacks', () => {
     const base = demoEvents[0];
-    expect(resolveEventImage({ ...base, cover_image_url: 'https://cdn.example.com/run.jpg', has_usable_official_image: true })).toBe('https://cdn.example.com/run.jpg');
+    expect(resolveEventImage({ ...base, cover_image_url: 'https://cdn.example.com/run.jpg', cover_image_source: 'official', has_usable_official_image: true })).toBe('https://cdn.example.com/run.jpg');
     expect(resolveEventImage({ ...base, id: 'same', cover_image_url: '[object Object]', has_usable_official_image: false })).toBe(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false }));
     expect(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false })).toBe(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false }));
   });
@@ -182,5 +182,22 @@ describe('capas geradas', () => {
     expect(url).toContain('/api/events/cover?');
     expect(url).toContain('trail');
     expect(url).toContain('Itajub%C3%A1');
+  });
+});
+
+describe('origem ativa da capa', () => {
+  const base = { id: '1', slug: 'prova', name: 'Prova', event_category: 'rua' as const, cover_image_url: 'https://cdn.example/prova.jpg', has_usable_official_image: true };
+  it('respeita generated mesmo com imagem oficial disponível', async () => {
+    const { resolveEventImage } = await import('@/features/events/images');
+    const generated = '/api/events/cover?name=Prova';
+    expect(resolveEventImage({ ...base, cover_image_url: generated, cover_image_source: 'generated' })).toBe(generated);
+  });
+  it('respeita official quando essa é a origem selecionada', async () => {
+    const { resolveEventImage } = await import('@/features/events/images');
+    expect(resolveEventImage({ ...base, cover_image_source: 'official' })).toBe(base.cover_image_url);
+  });
+  it('não usa URL ativa quando a origem é fallback', async () => {
+    const { resolveEventImage } = await import('@/features/events/images');
+    expect(resolveEventImage({ ...base, cover_image_source: 'fallback' })).not.toBe(base.cover_image_url);
   });
 });

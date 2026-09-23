@@ -15,7 +15,7 @@ function stableIndex(value: string): number {
 }
 
 export function resolveEventImage(event: Pick<RaceEvent, 'id' | 'slug' | 'name' | 'event_category' | 'cover_image_url' | 'cover_image_source' | 'has_usable_official_image'>): string {
-  if (validUrl(event.cover_image_url) && (event.cover_image_source === 'generated' || event.has_usable_official_image !== false)) return event.cover_image_url;
+  if (validUrl(event.cover_image_url) && (event.cover_image_source === 'official' || event.cover_image_source === 'generated' || (!event.cover_image_source && event.has_usable_official_image !== false))) return event.cover_image_url;
   const text = `${event.name} ${event.event_category}`.toLowerCase();
   if (/trail|montanha/.test(text)) return FALLBACKS[2];
   if (/night|noturna/.test(text)) return FALLBACKS[1];
