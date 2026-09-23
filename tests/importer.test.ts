@@ -87,3 +87,34 @@ describe('destino de inscrição', () => {
     expect(resolveRegistrationDestination({ registration_url: 'https://portal.example/', official_url: 'https://organizador.example/' })).toBeNull();
   });
 });
+
+describe('Portal das Corridas', () => {
+  it('normaliza cidade e UF com Brasil', () => {
+    const draft=extractEventMetadata('<html><body><div>Local: Itajubá, MG, Brasil</div></body></html>','https://www.portaldascorridas.com.br/event-details/itajuba');
+    expect(draft.city).toBe('Itajubá'); expect(draft.state).toBe('MG');
+  });
+  it('remove CEP da localidade', () => {
+    const draft=extractEventMetadata('<html><body><div>Três Pontas, MG, 37190-000, Brasil</div></body></html>','https://portaldascorridas.com.br/event-details/tres-pontas');
+    expect(draft.city).toBe('Três Pontas'); expect(draft.state).toBe('MG');
+  });
+  it('aceita cidade com UF em formato separado e extrai local e horário', () => {
+    const draft=extractEventMetadata('<html><body><div>Carmo de Minas - MG</div><div>Local: Praça Central</div><div>Largada às 07:00</div></body></html>','https://portaldascorridas.com.br/event-details/carmo');
+    expect(draft.city).toBe('Carmo de Minas'); expect(draft.state).toBe('MG'); expect(draft.startTime).toBe('07:00');
+  });
+  it('não inventa UF quando só há cidade', () => {
+    const draft=extractEventMetadata('<html><body><div>Local: Carmo de Minas</div></body></html>','https://portaldascorridas.com.br/event-details/carmo');
+    expect(draft.city).toBe(''); expect(draft.state).toBe('');
+  });
+  it('reutiliza normalizador de distâncias múltiplas', () => {
+    const draft=extractEventMetadata('<html><body><div>Provas: 5 km, 10 km e meia maratona</div></body></html>','https://portaldascorridas.com.br/event-details/prova');
+    expect(draft.distances.map(item=>item.distance_km)).toEqual(expect.arrayContaining([5,10,21.097]));
+  });
+  it('extrai preço claramente marcado e mantém inscrição específica', () => {
+    const draft=extractEventMetadata('<html><body><div>Inscrição: R$ 89,90</div><a href="https://portaldascorridas.com.br/event-details/prova">Detalhes</a><a href="https://inscricoes.example.com/evento/prova">Inscreva-se</a></body></html>','https://portaldascorridas.com.br/event-details/prova');
+    expect(draft.priceFrom).toBe(89.9); expect(draft.registrationUrl).toBe('https://inscricoes.example.com/evento/prova');
+  });
+  it('mantém prioridade do JSON-LD sobre texto conflitante', () => {
+    const draft=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Prova","location":{"address":{"addressLocality":"Itajubá","addressRegion":"MG"}}}</script><body><div>Três Pontas, MG, Brasil</div></body>','https://portaldascorridas.com.br/event-details/prova');
+    expect(draft.city).toBe('Itajubá'); expect(draft.state).toBe('MG');
+  });
+});
