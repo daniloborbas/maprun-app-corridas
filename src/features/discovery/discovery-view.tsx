@@ -61,40 +61,42 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
           <p>Encontre sua próxima corrida</p>
         </div>
         <div className="feed-toolbar">
-          <div className="category-tabs" aria-label="Categorias">
-            {[
-              ['', 'Para você'],
-              ['rua', 'Rua'],
-              ['trail', 'Trilha'],
-              ['night', 'Night run'],
-            ].map(([value, label]) => (
-              <button
-                aria-pressed={category === value}
-                className={category === value ? 'active' : ''}
-                key={value}
-                onClick={() => {
-                  setCategory(value);
-                  setLimit(4);
-                }}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="filter-scroll">
+            <div className="category-tabs" aria-label="Categorias">
+              {[
+                ['', 'Para você'],
+                ['rua', 'Rua'],
+                ['trail', 'Trilha'],
+                ['night', 'Night run'],
+              ].map(([value, label]) => (
+                <button
+                  aria-pressed={category === value}
+                  className={category === value ? 'active' : ''}
+                  key={value}
+                  onClick={() => {
+                    setCategory(value);
+                    setLimit(4);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <select
+              className="sort-select"
+              aria-label="Ordenar corridas"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as DiscoveryQuery['sort'])}
+            >
+              <option value="date">Próximas datas</option>
+              <option value="nearby" disabled={!location}>
+                Mais perto
+              </option>
+              <option value="balanced" disabled={!location}>
+                Perto e em breve
+              </option>
+            </select>
           </div>
-          <select
-            className="sort-select"
-            aria-label="Ordenar corridas"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as DiscoveryQuery['sort'])}
-          >
-            <option value="date">Próximas datas</option>
-            <option value="nearby" disabled={!location}>
-              Mais perto
-            </option>
-            <option value="balanced" disabled={!location}>
-              Perto e em breve
-            </option>
-          </select>
         </div>
         <div className="discovery-feed">
           {feed.slice(0, limit).map((event, index) => (

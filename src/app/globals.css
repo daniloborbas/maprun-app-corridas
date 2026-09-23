@@ -407,6 +407,12 @@ label,
   margin-bottom: 16px;
   min-height: 42px;
 }
+.filter-scroll {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
 .category-tabs {
   display: flex;
   gap: 4px;
@@ -1771,16 +1777,35 @@ blockquote span {
     padding: 4px 15px;
     margin-bottom: 8px;
     gap: 4px;
+    overflow: hidden;
   }
-  .category-tabs {
-    flex: 1;
+  .filter-scroll {
+    width: 100%;
     min-width: 0;
     overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    gap: 6px;
+    padding: 2px 1px 4px;
+  }
+  .filter-scroll::-webkit-scrollbar { display: none; }
+  .filter-scroll .category-tabs {
+    flex: 0 0 auto;
+    min-width: max-content;
+    overflow: visible;
+  }
+  .filter-scroll .sort-select {
+    flex: 0 0 auto;
+    width: 132px;
+    max-width: none;
+  }
+  .category-tabs {
     gap: 2px;
   }
-  .category-tabs::-webkit-scrollbar { display: none; }
   .category-tabs button {
+    flex: 0 0 auto;
+    white-space: nowrap;
     font-size: 12px;
     padding: 8px 12px;
     border: 1px solid #e6ebe7;
