@@ -138,9 +138,10 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
               <div className="desktop-location-panel">
                 <span>Localização</span>
                 <LocationPicker />
+                <small>Escolher cidade</small>
               </div>
-              <Link href="/?sort=nearby">Perto de você</Link>
-              <Link href="/?sort=date">Próximas datas</Link>
+              <button className={location && sort === 'nearby' ? 'active' : ''} type="button" disabled={!location} onClick={() => setSort('nearby')}>Perto de você</button>
+              <button className={sort === 'date' ? 'active' : ''} type="button" onClick={() => setSort('date')}>Próximas datas</button>
             </div>
             <div className="desktop-nav-group desktop-modalities">
               <span>Modalidades</span>
