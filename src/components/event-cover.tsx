@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import type { RaceEvent } from '@/features/events/types';
-import { resolveEventImage } from '@/features/events/images';
+import { resolveEventFallbackImage, resolveEventImage } from '@/features/events/images';
 export function EventCover({
   event,
   priority = false,
@@ -13,13 +13,14 @@ export function EventCover({
   sizes?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const fallback = resolveEventImage(event);
-  const src = failed ? fallback : resolveEventImage(event);
+  const fallback = resolveEventFallbackImage(event);
+  const activeImage = resolveEventImage(event);
+  const src = failed ? fallback : activeImage;
   return (
     <Image
       src={src}
       alt={
-        event.cover_image_source === 'official' && !failed
+        event.cover_image_source === 'official' && !failed && activeImage === event.cover_image_url
           ? event.name
           : `Imagem ilustrativa de ${event.event_category === 'trail' ? 'montanhas' : 'corrida'}`
       }

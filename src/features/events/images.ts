@@ -1,6 +1,6 @@
 import type { RaceEvent } from './types';
 
-const FALLBACKS = ['/images/runners.jpg', '/images/road.jpg', '/images/mantiqueira-run.png'] as const;
+const FALLBACKS = ['/images/runners.jpg', '/images/road.jpg', '/images/mountains.jpg', '/images/mantiqueira-run.png'] as const;
 
 function validUrl(value: unknown): value is string {
   if (typeof value !== 'string' || (!/^https?:\/\//i.test(value) && !value.startsWith('/api/events/cover'))) return false;
@@ -16,6 +16,10 @@ function stableIndex(value: string): number {
 
 export function resolveEventImage(event: Pick<RaceEvent, 'id' | 'slug' | 'name' | 'event_category' | 'cover_image_url' | 'cover_image_source' | 'has_usable_official_image'>): string {
   if (validUrl(event.cover_image_url) && (event.cover_image_source === 'official' || event.cover_image_source === 'generated' || (!event.cover_image_source && event.has_usable_official_image !== false))) return event.cover_image_url;
+  return resolveEventFallbackImage(event);
+}
+
+export function resolveEventFallbackImage(event: Pick<RaceEvent, 'id' | 'slug' | 'name' | 'event_category'>): string {
   const text = `${event.name} ${event.event_category}`.toLowerCase();
   if (/trail|montanha/.test(text)) return FALLBACKS[2];
   if (/night|noturna/.test(text)) return FALLBACKS[1];
