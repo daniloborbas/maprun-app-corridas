@@ -33,7 +33,12 @@ export function Navigation() {
             </Link>
           ))}
         </nav>
+        <Link href="/buscar" className="desktop-search-link" aria-label="Buscar corridas">
+          <Search size={17} />
+          <span>Buscar corridas por nome, cidade ou estado…</span>
+        </Link>
         <LocationPicker />
+        <Link href="/admin" className="desktop-organizer-link">Para organizadores</Link>
         <span className="brand-note">Mais corridas. Mais histórias.</span>
       </header>
       <nav className="bottom-nav" aria-label="Navegação mobile">
