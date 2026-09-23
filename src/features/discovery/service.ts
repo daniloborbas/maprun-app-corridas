@@ -73,7 +73,10 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
           await client.from('discovered_events').update({ ...result.candidate, quality_status:result.qualityStatus }).eq('id', candidate.id);
           enriched++;
           if (result.qualityStatus === 'ready') ready++; else if (result.qualityStatus === 'conflict') conflicts++; else incomplete++;
-        } catch { enrichmentErrors++; }
+        } catch (error) {
+          enrichmentErrors++;
+          errorDetails.push(sanitizeDiscoveryError('enrichment', error instanceof Error ? error.name || 'error' : 'error'));
+        }
       }
     }
     for (const source of sources.filter((item) => item.active)) {
