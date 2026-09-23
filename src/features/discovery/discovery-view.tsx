@@ -135,6 +135,10 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
             </nav>
             <div className="desktop-nav-group">
               <span>Filtros</span>
+              <div className="desktop-location-panel">
+                <span>Localização</span>
+                <LocationPicker />
+              </div>
               <Link href="/?sort=nearby">Perto de você</Link>
               <Link href="/?sort=date">Próximas datas</Link>
             </div>

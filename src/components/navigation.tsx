@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Compass, Search, Bookmark, UserRound, Mountain } from 'lucide-react';
+import { LocationPicker } from '@/features/location/location-picker';
 const links = [
   { href: '/', label: 'Descobrir', icon: Compass },
   { href: '/buscar', label: 'Buscar', icon: Search },
@@ -32,6 +33,7 @@ export function Navigation() {
             </Link>
           ))}
         </nav>
+        <LocationPicker />
         <span className="brand-note">Mais corridas. Mais histórias.</span>
       </header>
       <nav className="bottom-nav" aria-label="Navegação mobile">
