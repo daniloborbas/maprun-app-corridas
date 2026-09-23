@@ -1,4 +1,4 @@
-import { fetchEventPage, type ImportedEventDraft } from '@/features/importer/url-import';
+import { fetchEventPage, type ImportedEventDraft, type ExtractionResult } from '@/features/importer/url-import';
 import type { DiscoveryQualityStatus, DiscoveredEventCandidate } from './types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { geocodeEventLocation } from '@/features/geocoding/service';
@@ -8,6 +8,7 @@ export interface EnrichmentResult {
   candidate: Partial<DiscoveredEventCandidate>;
   qualityStatus: DiscoveryQualityStatus;
   past: boolean;
+  extraction: Pick<ExtractionResult, 'event'|'fieldSources'|'extractionQuality'|'shouldUseAiFallback'>;
 }
 
 export function qualityForDraft(draft: ImportedEventDraft, autoReadyAllowed = true): DiscoveryQualityStatus {
@@ -17,6 +18,9 @@ export function qualityForDraft(draft: ImportedEventDraft, autoReadyAllowed = tr
 
 export async function enrichDiscoveredEvent(candidate: DiscoveredEventCandidate, autoReadyAllowed = true, client?: SupabaseClient, trustLevel: 'A'|'B'|'C' = 'C'): Promise<EnrichmentResult> {
   const draft = await fetchEventPage(candidate.source_url);
+  // The fetch result remains the source of truth; this metadata is exposed to the
+  // pipeline so a future AI fallback can be gated without changing persistence.
+  const extraction = draft.extraction ?? extractEventExtractionFromDraft(draft);
   const past = Boolean(draft.startDate && Date.parse(draft.startDate) < Date.now());
   const coordinates = !candidate.latitude && !candidate.longitude && draft.city && draft.state ? await geocodeEventLocation({ address: draft.address, venue: draft.venue, city: draft.city, state: draft.state }, { client }) : null;
   const enriched = {
@@ -47,5 +51,14 @@ export async function enrichDiscoveredEvent(candidate: DiscoveredEventCandidate,
     candidate: { ...enriched, confidence_score: confidence.score, confidence_reasons: confidence.reasons },
     qualityStatus: qualityForDraft(draft, autoReadyAllowed),
     past,
+    extraction,
   };
+}
+
+function extractEventExtractionFromDraft(draft: ImportedEventDraft): Pick<ExtractionResult, 'event'|'fieldSources'|'extractionQuality'|'shouldUseAiFallback'> {
+  const event = { name: draft.name || null, date: draft.startDate, startTime: draft.startTime || null, city: draft.city || null, state: draft.state || null, venue: draft.venue || null, address: draft.address || null, distances: draft.distances.map(item => item.label), price: draft.priceFrom === null ? null : String(draft.priceFrom), organizerName: draft.organizerName || null, registrationUrl: draft.registrationUrl || null, coverImageUrl: draft.coverImageUrl || null };
+  const missingEssentialFields = (['name','date','city','state'] as const).filter(field => !event[field]);
+  const missingImportantFields = (['distances','registrationUrl','organizerName','venue','coverImageUrl'] as const).filter(field => { const value=event[field]; return !value || (Array.isArray(value) && value.length===0); });
+  const extractionQuality = { status: missingEssentialFields.length ? 'insufficient' as const : missingImportantFields.length >= 3 ? 'partial' as const : 'complete' as const, missingEssentialFields: missingEssentialFields.map(field => field === 'date' ? 'startDate' as const : field), missingImportantFields, conflicts: [] };
+  return { event, fieldSources: {}, extractionQuality, shouldUseAiFallback: extractionQuality.status === 'insufficient' };
 }
