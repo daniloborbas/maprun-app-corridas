@@ -154,13 +154,13 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
           <div className="desktop-race-grid">
             {feed.slice(0, 6).map((event) => (
               <button className={`desktop-race-card${selected?.id === event.id ? ' selected' : ''}`} key={event.id} onClick={() => setSelectedId(event.id)}>
-                <span className="desktop-race-image"><EventCover event={event} sizes="(min-width: 1200px) 22vw, 30vw" /></span>
+                <span className="desktop-race-image"><EventCover event={event} sizes="(min-width: 1440px) 24vw, 34vw" />{event.distance_km !== undefined && <span className="desktop-distance-overlay">{Math.round(event.distance_km)} km de você</span>}</span>
                 <div className="desktop-race-card-content">
                   <h2>{event.name}</h2>
                   <p><MapPin size={14} />{event.city} · {event.state}</p>
                   <p><CalendarDays size={14} />{formatDate(event.start_date)}</p>
-                  <div className="desktop-distance-badges">{event.event_distances.map((distance) => <span key={distance.label}>{distance.label}</span>)}</div>
-                  <strong>{event.price_from === null ? 'Consulte o organizador' : event.price_from === 0 ? 'Gratuito' : `A partir de ${formatMoney(event.price_from)}`}</strong>
+                  <div className="desktop-distance-badges">{event.event_distances.slice(0, 4).map((distance) => <span key={distance.label}>{distance.label}</span>)}{event.event_distances.length > 4 && <span>+{event.event_distances.length - 4}</span>}</div>
+                  {event.price_from !== null && <strong>{event.price_from === 0 ? 'Gratuito' : `A partir de ${formatMoney(event.price_from)}`}</strong>}
                   <span className="desktop-card-link">Ver detalhes <ArrowRight size={14} /></span>
                 </div>
               </button>

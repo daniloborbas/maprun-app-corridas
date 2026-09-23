@@ -777,17 +777,20 @@ label,
   .desktop-location-panel > small { padding: 0 10px; color: var(--muted); font-size: 11px; }
   .desktop-location-panel .location-trigger { width: 100%; justify-content: flex-start; min-height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); font-size: 11px; }
   .desktop-race-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-  .desktop-race-card { min-width: 0; padding: 0; overflow: hidden; text-align: left; border: 1px solid var(--line); border-radius: 14px; background: white; color: var(--ink); cursor: pointer; transition: border-color 160ms ease, box-shadow 160ms ease; }
+  .desktop-race-card { min-width: 0; min-height: 100%; padding: 0; overflow: hidden; text-align: left; border: 1px solid var(--line); border-radius: 14px; background: white; color: var(--ink); cursor: pointer; transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease; }
   .desktop-race-card:hover,
   .desktop-race-card.selected { border-color: #9be4b5; box-shadow: 0 8px 22px #153d2412; }
+  .desktop-race-card:hover { transform: translateY(-2px); }
   .desktop-race-image,
   .desktop-race-panel-image { position: relative; display: block; width: 100%; aspect-ratio: 1.35; overflow: hidden; }
-  .desktop-race-card-content { padding: 11px 12px 13px; }
-  .desktop-race-card-content h2 { display: -webkit-box; overflow: hidden; margin: 0 0 7px; font-size: 15px; line-height: 1.2; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .desktop-race-image { aspect-ratio: 1.38; }
+  .desktop-distance-overlay { position: absolute; left: 10px; bottom: 10px; padding: 5px 9px; border-radius: 999px; background: #17221dcc; color: white; font-size: 10px; font-weight: 600; }
+  .desktop-race-card-content { display: flex; min-height: 158px; flex-direction: column; padding: 14px 15px 15px; }
+  .desktop-race-card-content h2 { display: -webkit-box; overflow: hidden; margin: 0 0 8px; font-family: var(--font-display); font-size: 17px; font-weight: 600; line-height: 1.18; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .desktop-race-card-content p,
   .desktop-race-card-content strong { display: flex; align-items: center; gap: 5px; margin: 5px 0 0; font-size: 11px; }
-  .desktop-race-card-content strong { margin-top: 9px; font-size: 12px; }
-  .desktop-card-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 11px; color: var(--green-dark); font-size: 12px; font-weight: 600; }
+  .desktop-race-card-content strong { margin-top: 9px; font-size: 12px; font-weight: 600; }
+  .desktop-card-link { display: inline-flex; align-items: center; gap: 5px; margin-top: auto; padding-top: 10px; color: var(--green-dark); font-size: 12px; font-weight: 600; }
   .desktop-distance-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
   .desktop-distance-badges span { display: inline-flex; align-items: center; gap: 3px; padding: 4px 7px; border-radius: 999px; background: #f1f4f2; font-size: 10px; }
   .desktop-race-panel { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: white; }
