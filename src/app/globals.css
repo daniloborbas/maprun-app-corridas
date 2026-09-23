@@ -320,6 +320,12 @@ label,
   padding: 28px 5.2% 60px;
   align-items: start;
 }
+.discovery-layout > *,
+.discovery-main,
+.discovery-feed,
+.discovery-card {
+  min-width: 0;
+}
 .discovery-intro {
   align-self: start;
 }
@@ -653,8 +659,8 @@ label,
   .discovery-layout {
     width: min(100% - 64px, 1280px);
     max-width: 1280px;
-    grid-template-columns: 300px minmax(580px, 640px) 260px;
-    gap: 40px;
+    grid-template-columns: 260px minmax(0, 600px) 240px;
+    gap: 32px;
     padding: 42px 0 72px;
   }
   .discovery-intro {
@@ -663,8 +669,8 @@ label,
   .discovery-intro-sticky {
     position: fixed;
     top: 70px;
-    left: max(32px, calc((100vw - 1216px) / 2));
-    width: 300px;
+    left: max(32px, calc((100vw - 1280px) / 2));
+    width: 260px;
     padding-top: 54px;
     z-index: 5;
   }
@@ -683,11 +689,15 @@ label,
   }
   .discovery-main {
     min-width: 0;
+    width: 100%;
+    max-width: 600px;
   }
   .discovery-feed {
     gap: 32px;
   }
   .discovery-card {
+    width: 100%;
+    max-width: 100%;
     height: min(760px, calc(100svh - 205px));
     min-height: 680px;
     border-radius: 22px;
@@ -731,8 +741,8 @@ label,
   .discovery-side-sticky {
     position: fixed;
     top: 70px;
-    right: max(32px, calc((100vw - 1216px) / 2));
-    width: 260px;
+    right: max(32px, calc((100vw - 1280px) / 2));
+    width: 240px;
     padding-top: 67px;
     z-index: 5;
   }
@@ -754,17 +764,17 @@ label,
   .discovery-layout {
     width: min(100% - 112px, 1400px);
     max-width: 1400px;
-    grid-template-columns: 320px minmax(620px, 1fr) 280px;
-    gap: 44px;
+    grid-template-columns: 280px minmax(0, 640px) 260px;
+    gap: 40px;
     padding-top: 46px;
   }
   .discovery-intro-sticky {
-    left: max(56px, calc((100vw - 1328px) / 2));
-    width: 320px;
+    left: max(32px, calc((100vw - 1400px) / 2));
+    width: 280px;
   }
   .discovery-side-sticky {
-    right: max(56px, calc((100vw - 1328px) / 2));
-    width: 280px;
+    right: max(32px, calc((100vw - 1400px) / 2));
+    width: 260px;
   }
   .discovery-card {
     height: min(760px, calc(100svh - 210px));
