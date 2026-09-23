@@ -205,6 +205,9 @@ label,
 }
 .has-error input,.has-error select,.has-error textarea { border-color:#c77b7b; }
 .field-error { display:block; margin-top:5px; color:#a34f4f; font-size:12px; }
+.field-warning { display:block; margin-top:5px; color:#8a6420; font-size:12px; }
+.registration-preview { display:grid; gap:5px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:#f8fbf8; overflow-wrap:anywhere; }
+.registration-preview strong { font-size:13px; font-weight:500; color:var(--ink); }
 .login-divider {
   display: flex;
   align-items: center;

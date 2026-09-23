@@ -5,7 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { saveAdminEvent, deleteAdminEvent } from './actions';
 import type { RaceEvent, EventDistance } from '@/features/events/types';
 import { generateEventEditorialContent } from '@/features/events/editorial';
-import { resolveRegistrationDestination } from '@/features/events/registration';
+import { classifyRegistrationUrl, resolveRegistrationDestination } from '@/features/events/registration';
 export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 const toLocal = (v?: string | null) =>
   v ? new Date(new Date(v).getTime() - 3 * 3600000).toISOString().slice(0, 16) : '';
@@ -18,6 +18,8 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     })) || [{ label: '5 km', distance_km: 5, category: 'rua' }],
   );
   const [existingSources] = useState(() => event?.event_sources?.map((source) => ({ source_name: source.source_name, source_url: source.source_url, source_method: source.source_method || source.import_method || 'manual' })) || []);
+  const [officialUrl, setOfficialUrl] = useState(event?.official_url || '');
+  const [registrationUrl, setRegistrationUrl] = useState(event?.registration_url || '');
   const [message, setMessage] = useState(''),
     [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}),
     [busy, setBusy] = useState(false),
@@ -212,14 +214,25 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
             defaultValue={event?.price_from ?? ''}
           />
         </label>
-        {input('registration_url', 'URL direta de inscrição (HTTPS)', event?.registration_url, 'url')}
-        <small>Use a página específica desta prova, não a página inicial da plataforma.</small>
-        {event && resolveRegistrationDestination(event) ? (
-          <a href={resolveRegistrationDestination(event) || undefined} target="_blank" rel="noreferrer" className="text-sm font-medium text-[#14D160]">
-            Abrir link
-          </a>
-        ) : null}
-        {input('official_url', 'Site oficial (HTTPS)', event?.official_url, 'url')}
+        <label className={fieldErrors.registration_url ? 'has-error' : ''}>
+          URL direta de inscrição (HTTPS)
+          <input name="registration_url" type="url" value={registrationUrl} onChange={(e) => setRegistrationUrl(e.target.value)} aria-invalid={Boolean(fieldErrors.registration_url)} />
+          <small>Link direto para a inscrição desta prova. Evite a página inicial da plataforma.</small>
+          {registrationUrl && classifyRegistrationUrl(registrationUrl) === 'generic' ? <span className="field-warning">Este link parece genérico. Verifique antes de publicar.</span> : null}
+          {registrationUrl && <a href={registrationUrl} target="_blank" rel="noopener noreferrer" className="text-button">Abrir link ↗</a>}
+        </label>
+        <label className={fieldErrors.official_url ? 'has-error' : ''}>
+          Página oficial da corrida
+          <input name="official_url" type="url" value={officialUrl} onChange={(e) => setOfficialUrl(e.target.value)} aria-invalid={Boolean(fieldErrors.official_url)} />
+          <small>Página específica desta prova no site do organizador ou portal.</small>
+          {officialUrl && <a href={officialUrl} target="_blank" rel="noopener noreferrer" className="text-button">Abrir link ↗</a>}
+        </label>
+        {officialUrl && classifyRegistrationUrl(registrationUrl) !== 'specific' && classifyRegistrationUrl(officialUrl) !== 'generic' ? <button type="button" className="text-button" onClick={() => setRegistrationUrl(officialUrl)}>Usar página oficial como inscrição</button> : null}
+        <div className="wide registration-preview">
+          <small>Destino atual do botão “Inscrever-se”</small>
+          <strong>{resolveRegistrationDestination({ registration_url: registrationUrl, official_url: officialUrl }) || 'Sem destino válido'}</strong>
+          {resolveRegistrationDestination({ registration_url: registrationUrl, official_url: officialUrl }) && <a href={resolveRegistrationDestination({ registration_url: registrationUrl, official_url: officialUrl }) || undefined} target="_blank" rel="noopener noreferrer" className="text-button">Testar botão Inscrever-se ↗</a>}
+        </div>
         {input('regulation_url', 'Regulamento (HTTPS)', event?.regulation_url, 'url')}
         {field('cover_image_url', 'URL da capa ou caminho do fallback', event?.cover_image_url)}
         <label>
