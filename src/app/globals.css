@@ -323,6 +323,9 @@ label,
 .desktop-discovery-grid {
   display: none;
 }
+.desktop-page-title {
+  display: none;
+}
 .mobile-discovery-feed {
   display: grid;
 }
@@ -671,6 +674,62 @@ label,
   .discovery-intro {
     display: none;
   }
+  .desktop-page-title {
+    display: block;
+    margin: 0 0 18px;
+    font-family: var(--font-display);
+    font-size: 38px;
+    line-height: 1.05;
+  }
+  .desktop-experience-grid {
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr) 350px;
+    gap: 24px;
+    align-items: start;
+  }
+  .desktop-nav-panel,
+  .desktop-race-grid,
+  .desktop-race-panel { min-width: 0; }
+  .desktop-nav-panel nav,
+  .desktop-nav-group { display: grid; gap: 5px; }
+  .desktop-nav-panel nav a,
+  .desktop-nav-group a,
+  .desktop-nav-group > span {
+    padding: 10px 12px;
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .desktop-nav-panel nav a.active,
+  .desktop-nav-group a:hover { background: var(--pale); color: var(--green-dark); }
+  .desktop-nav-group { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 20px; }
+  .desktop-nav-group > span { color: var(--ink); font-weight: 600; }
+  .desktop-race-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .desktop-race-card { min-width: 0; padding: 0; overflow: hidden; text-align: left; border: 1px solid var(--line); border-radius: 14px; background: white; color: var(--ink); cursor: pointer; transition: border-color 160ms ease, box-shadow 160ms ease; }
+  .desktop-race-card:hover,
+  .desktop-race-card.selected { border-color: #9be4b5; box-shadow: 0 8px 22px #153d2412; }
+  .desktop-race-image,
+  .desktop-race-panel-image { position: relative; display: block; width: 100%; aspect-ratio: 1.35; overflow: hidden; }
+  .desktop-race-card-content { padding: 11px 12px 13px; }
+  .desktop-race-card-content h2 { display: -webkit-box; overflow: hidden; margin: 0 0 7px; font-size: 15px; line-height: 1.2; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .desktop-race-card-content p,
+  .desktop-race-card-content strong { display: flex; align-items: center; gap: 5px; margin: 5px 0 0; font-size: 11px; }
+  .desktop-race-card-content strong { margin-top: 9px; font-size: 12px; }
+  .desktop-distance-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+  .desktop-distance-badges span { display: inline-flex; align-items: center; gap: 3px; padding: 4px 7px; border-radius: 999px; background: #f1f4f2; font-size: 10px; }
+  .desktop-race-panel { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: white; }
+  .desktop-race-panel-image { aspect-ratio: 1.45; }
+  .desktop-race-panel-content { padding: 18px; }
+  .desktop-race-panel-content h2 { margin: 8px 0 14px; font-family: var(--font-display); font-size: 25px; line-height: 1.08; }
+  .desktop-race-panel-content > p { display: flex; align-items: center; gap: 7px; margin: 8px 0; font-size: 12px; }
+  .desktop-panel-description { color: var(--muted); line-height: 1.55; }
+  .desktop-panel-organizer { padding-top: 12px; border-top: 1px solid var(--line); }
+  .desktop-panel-actions { display: grid; gap: 10px; margin-top: 18px; }
+  .desktop-panel-actions > .button { justify-content: center; width: 100%; }
+  .desktop-panel-actions .event-actions { justify-content: stretch; }
+  .desktop-panel-actions .event-actions button { flex: 1; }
+  .desktop-discovery-grid { display: none; }
+  .mobile-discovery-feed { display: none; }
   .discovery-intro-sticky {
     position: fixed;
     top: 70px;
@@ -834,6 +893,8 @@ label,
     width: min(100% - 112px, 1400px);
     padding-top: 46px;
   }
+  .desktop-experience-grid { grid-template-columns: 200px minmax(0, 1fr) 370px; gap: 28px; }
+  .desktop-race-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .discovery-intro-sticky {
     left: max(32px, calc((100vw - 1400px) / 2));
     width: 280px;
@@ -1743,6 +1804,32 @@ blockquote span {
   }
   .discovery-intro,
   .discovery-side { display: none; }
+  .desktop-page-title { display: block; margin: 0 0 16px; font-family: var(--font-display); font-size: 30px; }
+  .desktop-experience-grid { display: grid; grid-template-columns: 165px minmax(0, 1fr) 290px; gap: 18px; align-items: start; }
+  .desktop-nav-panel,
+  .desktop-race-grid,
+  .desktop-race-panel { min-width: 0; }
+  .desktop-nav-panel nav,
+  .desktop-nav-group { display: grid; gap: 4px; }
+  .desktop-nav-panel nav a,
+  .desktop-nav-group a,
+  .desktop-nav-group > span { padding: 8px; font-size: 11px; color: var(--muted); }
+  .desktop-nav-group { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .desktop-race-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .desktop-race-card { min-width: 0; padding: 0; overflow: hidden; text-align: left; border: 1px solid var(--line); border-radius: 12px; background: white; }
+  .desktop-race-image { aspect-ratio: 1.3; }
+  .desktop-race-card-content { padding: 9px; }
+  .desktop-race-card-content h2 { margin: 0; font-size: 13px; }
+  .desktop-race-card-content p, .desktop-race-card-content strong { display: flex; gap: 4px; margin: 4px 0 0; font-size: 9px; }
+  .desktop-distance-badges { gap: 3px; margin-top: 6px; }
+  .desktop-distance-badges span { padding: 3px 5px; font-size: 8px; }
+  .desktop-race-panel { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; }
+  .desktop-race-panel-image { aspect-ratio: 1.35; }
+  .desktop-race-panel-content { padding: 12px; }
+  .desktop-race-panel-content h2 { font-size: 19px; }
+  .desktop-race-panel-content > p { font-size: 10px; }
+  .desktop-experience-grid + .desktop-discovery-grid { display: none; }
+  .mobile-discovery-feed { display: none; }
   .desktop-discovery-grid {
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(260px, 0.9fr);
@@ -1780,6 +1867,8 @@ blockquote span {
   .desktop-discovery-grid {
     display: none;
   }
+  .desktop-experience-grid,
+  .desktop-page-title { display: none; }
   .mobile-discovery-feed {
     display: grid;
   }
