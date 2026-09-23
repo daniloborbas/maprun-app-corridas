@@ -54,12 +54,14 @@ export async function deleteAdminEvent(id: string) {
   if (!z.uuid().safeParse(id).success) return { error: 'Evento inválido.' };
   try {
     const { client } = await requireAdmin();
+    const { data: event } = await client.from('events').select('slug').eq('id', id).maybeSingle();
     const { error } = await client
       .from('events')
       .update({ deleted_at: new Date().toISOString(), status: 'archived' })
       .eq('id', id);
     if (error) return { error: 'Não foi possível arquivar.' };
     revalidatePath('/', 'layout');
+    if (event?.slug) revalidatePath(`/corrida/${event.slug}`);
     return { success: true };
   } catch {
     return { error: 'Acesso negado.' };
