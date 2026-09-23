@@ -5,6 +5,7 @@ import type { DiscoverySource, DiscoveryRunSummary } from './types';
 import { classifyDiscoveryCandidate } from './classifier';
 import { enrichDiscoveredEvent } from './enrichment';
 import { findBestEventDeduplication } from './deduplication';
+import { calculateDiscoveryConfidence } from './confidence';
 export const providers = [htmlCalendarProvider];
 export class DiscoveryAlreadyRunning extends Error {}
 const STALE_MS = 10 * 60_000;
@@ -44,7 +45,8 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
       else if (enrichmentBudget > 0 && (!candidate.enriched_at || Date.now() - Date.parse(candidate.enriched_at) > 24 * 60 * 60_000)) {
         enrichmentBudget--;
         try {
-            const result = await enrichDiscoveredEvent(candidate, sourceById.get(candidate.source_id)?.auto_ready_allowed === true, client);
+            const source = sourceById.get(candidate.source_id);
+            const result = await enrichDiscoveredEvent(candidate, source?.auto_ready_allowed === true, client, source?.trust_level ?? 'C');
           if (result.past) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored', enriched_at:new Date().toISOString() }).eq('id', candidate.id); continue; }
           await client.from('discovered_events').update({ ...result.candidate, quality_status:result.qualityStatus }).eq('id', candidate.id);
           enriched++;
@@ -70,7 +72,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
           if (enrichmentBudget > 0) {
             enrichmentBudget--;
             try {
-                const result = await enrichDiscoveredEvent(candidate, source.auto_ready_allowed === true, client);
+                const result = await enrichDiscoveredEvent(candidate, source.auto_ready_allowed === true, client, source.trust_level ?? 'C');
               if (result.past) { pastIgnored++; continue; }
               enrichedCandidate = { ...candidate, ...result.candidate };
               quality_status = result.qualityStatus;
@@ -104,6 +106,20 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
             quality_status = 'conflict';
             if (eventMatch.matchedEventId) enrichedCandidate.duplicate_event_id = eventMatch.matchedEventId;
           }
+          const finalConfidence = calculateDiscoveryConfidence({
+            trustLevel: source.trust_level ?? 'C',
+            hasFutureDate: Boolean(enrichedCandidate.event_date && Date.parse(enrichedCandidate.event_date) >= Date.now()),
+            hasValidLocation: Boolean(enrichedCandidate.city && enrichedCandidate.state),
+            hasCoordinates: Boolean(enrichedCandidate.latitude && enrichedCandidate.longitude),
+            hasRegistrationUrl: Boolean(enrichedCandidate.registration_url),
+            hasOrganizer: Boolean(enrichedCandidate.organizer_name),
+            hasImage: Boolean(enrichedCandidate.cover_image_url),
+            hasSpecificName: Boolean(enrichedCandidate.name && enrichedCandidate.name.trim().length >= 8),
+            hasAdditionalDetails: Boolean(enrichedCandidate.confidence_reasons?.includes('additional_race_details')),
+            deduplication: eventMatch.type !== 'none' ? eventMatch.type : discoveredMatch.type,
+          });
+          enrichedCandidate.confidence_score = finalConfidence.score;
+          enrichedCandidate.confidence_reasons = finalConfidence.reasons;
           const { error: insertError } = await client.from('discovered_events').insert({ ...enrichedCandidate, quality_status });
           if (insertError) throw insertError;
           newCandidates++;
