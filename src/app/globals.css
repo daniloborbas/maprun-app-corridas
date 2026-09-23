@@ -1029,17 +1029,23 @@ label,
 }
 .page-heading {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  justify-content: center;
   gap: 20px;
   align-items: center;
+  text-align: center;
   margin-bottom: 32px;
 }
+.page-heading > div { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.page-heading h1 { font-family: var(--font-display); font-weight: 700; }
 .page-heading h1 {
   margin-top: 12px;
 }
 .page-heading p {
-  margin-top: 12px;
+  max-width: 680px;
+  margin: 8px auto 0;
   font-size: 15px;
+  line-height: 1.55;
 }
 .search-layout {
   display: grid;
@@ -2242,7 +2248,8 @@ blockquote span {
   }
   .page-heading {
     margin-bottom: 25px;
-    align-items: flex-start;
+    align-items: center;
+    text-align: center;
   }
   .page-heading h1 {
     font-size: 27px;
@@ -2257,7 +2264,7 @@ blockquote span {
     line-height: 1.6;
   }
   .search-page .page-heading {
-    display: block;
+    display: flex;
   }
   .search-page .page-heading h1 {
     font-size: 27px;
