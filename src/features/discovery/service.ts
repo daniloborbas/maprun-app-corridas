@@ -29,6 +29,9 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   const errors: string[] = [];
   let discovered=0, newCandidates=0, known=0, duplicates=0, failed=0, ignored=0, pastIgnored=0, enriched=0, ready=0, incomplete=0, conflicts=0, enrichmentErrors=0;
   let enrichmentBudget = 25;
+  const aiEnabled = process.env.AI_EXTRACTION_ENABLED === 'true';
+  let aiBudget = Math.max(0, Number.parseInt(process.env.AI_EXTRACTION_MAX_PER_RUN || '5', 10) || 5);
+  const aiOptions = () => ({ enabled: aiEnabled, allowCall: aiEnabled && aiBudget > 0 });
   const finish = async () => {
     const status = failed===0 ? 'completed' : (newCandidates || discovered ? 'partial' : 'failed');
     const { error } = await client.from('discovery_runs').update({ status, finished_at:new Date().toISOString(), discovered_count:discovered, new_count:newCandidates, duplicate_count:duplicates, error_count:failed, error_details:errors }).eq('id',runId);
@@ -46,7 +49,9 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
         enrichmentBudget--;
         try {
             const source = sourceById.get(candidate.source_id);
-            const result = await enrichDiscoveredEvent(candidate, source?.auto_ready_allowed === true, client, source?.trust_level ?? 'C');
+            const result = await enrichDiscoveredEvent(candidate, source?.auto_ready_allowed === true, client, source?.trust_level ?? 'C', aiOptions());
+            if (result.aiFallback.attempted) console.info('[MapRun discovery] AI fallback used', { candidateId:candidate.id, success:result.aiFallback.success, errorType:result.aiFallback.errorType });
+            if (result.aiFallback.attempted) aiBudget--;
           if (result.past) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored', enriched_at:new Date().toISOString() }).eq('id', candidate.id); continue; }
           await client.from('discovered_events').update({ ...result.candidate, quality_status:result.qualityStatus }).eq('id', candidate.id);
           enriched++;
@@ -72,7 +77,9 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
           if (enrichmentBudget > 0) {
             enrichmentBudget--;
             try {
-                const result = await enrichDiscoveredEvent(candidate, source.auto_ready_allowed === true, client, source.trust_level ?? 'C');
+                const result = await enrichDiscoveredEvent(candidate, source.auto_ready_allowed === true, client, source.trust_level ?? 'C', aiOptions());
+              if (result.aiFallback.attempted) console.info('[MapRun discovery] AI fallback used', { candidateId:candidate.id, success:result.aiFallback.success, errorType:result.aiFallback.errorType });
+              if (result.aiFallback.attempted) aiBudget--;
               if (result.past) { pastIgnored++; continue; }
               enrichedCandidate = { ...candidate, ...result.candidate };
               quality_status = result.qualityStatus;
