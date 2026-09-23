@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Compass, Search, Bookmark, UserRound, Mountain } from 'lucide-react';
 import { LocationPicker } from '@/features/location/location-picker';
+import { UserAvatar } from '@/components/user-avatar';
+import { useApp } from '@/components/app-provider';
 const links = [
   { href: '/', label: 'Descobrir', icon: Compass },
   { href: '/buscar', label: 'Buscar', icon: Search },
@@ -11,6 +13,7 @@ const links = [
 ];
 export function Navigation() {
   const path = usePathname();
+  const { user } = useApp();
   return (
     <>
       <header className="desktop-header">
@@ -39,7 +42,7 @@ export function Navigation() {
         </Link>
         <LocationPicker />
         <Link href="/admin" className="desktop-organizer-link">Para organizadores</Link>
-        <Link href="/perfil" className="desktop-profile-link" aria-label="Abrir perfil"><UserRound size={22} /></Link>
+        <Link href="/perfil" className="desktop-profile-link" aria-label={user ? 'Abrir perfil' : 'Entrar ou criar conta'}>{user ? <UserAvatar name={user.name} avatarUrl={user.avatarUrl} googleAvatarUrl={user.googleAvatarUrl} size={36} /> : <UserRound size={22} />}</Link>
         <span className="brand-note">Mais corridas. Mais histórias.</span>
       </header>
       <nav className="bottom-nav" aria-label="Navegação mobile">

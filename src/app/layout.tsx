@@ -31,7 +31,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const [profile, favorites, going] =
     client && user
       ? await Promise.all([
-          client.from('profiles').select('name').eq('id', user.id).single(),
+          client.from('profiles').select('name, avatar_url').eq('id', user.id).single(),
           client.from('favorites').select('event_id').eq('user_id', user.id),
           client.from('event_attendance').select('event_id').eq('user_id', user.id),
         ])
@@ -40,7 +40,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="pt-BR">
       <body className={`${inter.variable} ${poppins.variable}`}>
         <AppProvider
-          user={user ? { id: user.id, name: profile?.data?.name || '', googleAvatarUrl: typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null } : null}
+          user={user ? { id: user.id, name: profile?.data?.name || '', avatarUrl: profile?.data?.avatar_url || null, googleAvatarUrl: typeof user.user_metadata?.picture === 'string' ? user.user_metadata.picture : typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null } : null}
           demo={demoMode}
           initialFavorites={favorites?.data?.map((e) => e.event_id) || []}
           initialGoing={going?.data?.map((e) => e.event_id) || []}
