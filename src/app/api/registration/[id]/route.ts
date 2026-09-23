@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/supabase/server';
-import { isSpecificRegistrationUrl } from '@/features/events/validation';
+import { resolveRegistrationDestination } from '@/features/events/registration';
 import { z } from 'zod';
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -9,7 +9,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!client) return new Response('Inscrição indisponível nesta demonstração.', { status: 404 });
   const { data: event } = await client
     .from('events')
-    .select('registration_url,status,start_date,end_date,is_demo')
+    .select('registration_url,official_url,status,start_date,end_date,is_demo')
     .eq('id', id)
     .is('deleted_at', null)
     .single();
@@ -18,7 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     event.is_demo ||
     event.status !== 'published' ||
     Date.parse(event.end_date || event.start_date) < Date.now() ||
-    !isSpecificRegistrationUrl(event.registration_url)
+    !resolveRegistrationDestination(event)
   )
     return new Response('Inscrições indisponíveis.', { status: 410 });
   const { data: { user } } = await client.auth.getUser();
@@ -35,7 +35,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     origin: 'registration_redirect',
     props: {},
   });
-  return NextResponse.redirect(event.registration_url, {
+  return NextResponse.redirect(resolveRegistrationDestination(event)!, {
     status: 302,
     headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' },
   });

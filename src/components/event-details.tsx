@@ -17,7 +17,7 @@ import { EventActions } from './event-actions';
 import { sanitizeEventText } from '@/features/events/text';
 import { useApp } from './app-provider';
 import { trackAnalyticsEvent } from '@/features/analytics/client';
-import { isSpecificRegistrationUrl } from '@/features/events/validation';
+import { resolveRegistrationDestination } from '@/features/events/registration';
 export function EventDetails({ event }: { event: RaceEvent }) {
   const { demo } = useApp();
   const ended = isEnded(event),
@@ -121,11 +121,6 @@ export function EventDetails({ event }: { event: RaceEvent }) {
             </p>
           )}
           <div className="detail-links">
-            {event.official_url && (
-              <a href={event.official_url} target="_blank" rel="noopener noreferrer">
-                Site oficial <ArrowUpRight size={16} />
-              </a>
-            )}
             {event.regulation_url && (
               <a href={event.regulation_url} target="_blank" rel="noopener noreferrer">
                 Regulamento <ArrowUpRight size={16} />
@@ -143,7 +138,7 @@ export function EventDetails({ event }: { event: RaceEvent }) {
           </p>
         ))}
         <div className="registration-cta">
-          {!ended && !cancelled && isSpecificRegistrationUrl(event.registration_url) && !event.demo ? (
+          {!ended && !cancelled && resolveRegistrationDestination(event) && !event.demo ? (
             <a
               className="button"
               href={`/api/registration/${event.id}`}

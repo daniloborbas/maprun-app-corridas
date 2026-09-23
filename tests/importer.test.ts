@@ -59,3 +59,18 @@ describe('inscrição segura', () => {
     expect(isSpecificRegistrationUrl('https://portal.example.com/evento/corrida-serra')).toBe(true);
   });
 });
+
+describe('destino de inscrição', () => {
+  it('prioriza inscrição específica', async () => {
+    const { resolveRegistrationDestination } = await import('@/features/events/registration');
+    expect(resolveRegistrationDestination({ registration_url: 'https://inscricoes.example/evento/x', official_url: 'https://organizador.example/x' })).toBe('https://inscricoes.example/evento/x');
+  });
+  it('usa página oficial específica quando a inscrição é homepage', async () => {
+    const { resolveRegistrationDestination } = await import('@/features/events/registration');
+    expect(resolveRegistrationDestination({ registration_url: 'https://portal.example/', official_url: 'https://organizador.example/evento/x' })).toBe('https://organizador.example/evento/x');
+  });
+  it('retorna nulo sem destino específico', async () => {
+    const { resolveRegistrationDestination } = await import('@/features/events/registration');
+    expect(resolveRegistrationDestination({ registration_url: 'https://portal.example/', official_url: 'https://organizador.example/' })).toBeNull();
+  });
+});

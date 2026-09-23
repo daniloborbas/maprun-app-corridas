@@ -211,7 +211,8 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
             defaultValue={event?.price_from ?? ''}
           />
         </label>
-        {input('registration_url', 'URL de inscrição (HTTPS)', event?.registration_url, 'url')}
+        {input('registration_url', 'URL direta de inscrição (HTTPS)', event?.registration_url, 'url')}
+        <small>Use a página específica desta prova, não a página inicial da plataforma.</small>
         {input('official_url', 'Site oficial (HTTPS)', event?.official_url, 'url')}
         {input('regulation_url', 'Regulamento (HTTPS)', event?.regulation_url, 'url')}
         {field('cover_image_url', 'URL da capa ou caminho do fallback', event?.cover_image_url)}
