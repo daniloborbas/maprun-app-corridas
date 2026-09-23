@@ -22,7 +22,7 @@ export const cities = [
   { label: 'Campinas, SP', latitude: -22.909, longitude: -47.062 },
 ];
 export function LocationPicker() {
-  const { location, setLocation, notify } = useApp();
+  const { location, setLocation, setRadius, notify } = useApp();
   const [open, setOpen] = useState(false),
     [loading, setLoading] = useState(false);
   function locate() {
@@ -37,6 +37,7 @@ export function LocationPicker() {
           label: 'Perto de você',
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          mode: 'geolocation',
           precise: true,
         });
         setLoading(false);
@@ -84,6 +85,15 @@ export function LocationPicker() {
               {cities.map((city) => (
                 <option key={city.label}>{city.label}</option>
               ))}
+            </select>
+          </label>
+          <label>
+            Raio de busca
+            <select aria-label="Raio de busca" value={location?.radiusKm || 100} onChange={(e) => setRadius(Number(e.target.value))}>
+              <option value="25">25 km</option>
+              <option value="50">50 km</option>
+              <option value="100">100 km</option>
+              <option value="200">200 km</option>
             </select>
           </label>
           <button

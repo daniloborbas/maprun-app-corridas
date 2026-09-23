@@ -7,8 +7,14 @@ import { browserDb } from '@/lib/supabase/browser';
 import { setEventInteraction } from '@/features/events/actions';
 import { trackAnalyticsEvent } from '@/features/analytics/client';
 import type { Coordinates } from '@/features/events/types';
+import { LOCATION_PREFERENCE_KEY, LOCATION_RADIUS_OPTIONS, normalizeLocationPreference } from '@/features/location/preference';
 export interface LocationPreference extends Coordinates {
   label: string;
+  mode?: 'manual' | 'geolocation';
+  city?: string;
+  state?: string;
+  radiusKm?: number;
+  updatedAt?: string;
   precise?: boolean;
 }
 interface AppContextValue {
@@ -18,6 +24,7 @@ interface AppContextValue {
   going: string[];
   location: LocationPreference | null;
   setLocation: (value: LocationPreference | null) => void;
+  setRadius: (radiusKm: number) => void;
   toggle: (id: string, kind: 'favorite' | 'going') => Promise<void>;
   login: () => void;
   notify: (message: string) => void;
@@ -58,14 +65,14 @@ export function AppProvider({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('maprun.location') || 'null');
-      if (
-        saved &&
-        Number.isFinite(saved.latitude) &&
-        Number.isFinite(saved.longitude) &&
-        typeof saved.label === 'string'
-      )
-        updateLocation(saved);
+      const saved = JSON.parse(localStorage.getItem(LOCATION_PREFERENCE_KEY) || localStorage.getItem('maprun.location') || 'null');
+      const restored = normalizeLocationPreference(saved);
+      if (restored) updateLocation(restored);
+      if (saved?.mode === 'geolocation' && navigator.geolocation && navigator.permissions) {
+        void navigator.permissions.query({ name: 'geolocation' }).then((permission) => {
+          if (permission.state === 'granted') navigator.geolocation.getCurrentPosition((position) => updateLocation((current) => current ? { ...current, latitude: position.coords.latitude, longitude: position.coords.longitude, updatedAt: new Date().toISOString(), precise: true } : current), () => {} , { maximumAge: 300000, timeout: 10000 });
+        }).catch(() => {});
+      }
       if (demo) {
         const restoredFavorites: unknown = JSON.parse(localStorage.getItem('maprun.demo.favorites') || '[]');
         const restoredGoing: unknown = JSON.parse(localStorage.getItem('maprun.demo.going') || '[]');
@@ -107,9 +114,14 @@ export function AppProvider({
     return () => window.removeEventListener('keydown', handler);
   }, [showLogin]);
   function setLocation(value: LocationPreference | null) {
-    updateLocation(value);
-    if (value && !value.precise) localStorage.setItem('maprun.location', JSON.stringify(value));
-    else localStorage.removeItem('maprun.location');
+    const next = value ? { ...value, mode: value.mode || (value.precise ? 'geolocation' : 'manual'), radiusKm: value.radiusKm || location?.radiusKm || 100, updatedAt: new Date().toISOString() } : null;
+    updateLocation(next);
+    if (next) localStorage.setItem(LOCATION_PREFERENCE_KEY, JSON.stringify(next));
+    else localStorage.removeItem(LOCATION_PREFERENCE_KEY);
+  }
+  function setRadius(radiusKm: number) {
+    if (!location || !LOCATION_RADIUS_OPTIONS.includes(radiusKm as (typeof LOCATION_RADIUS_OPTIONS)[number])) return;
+    setLocation({ ...location, radiusKm });
   }
   async function toggle(id: string, kind: 'favorite' | 'going') {
     if (!demo && !user) {
@@ -179,6 +191,7 @@ export function AppProvider({
         going,
         location,
         setLocation,
+        setRadius,
         toggle,
         login: () => {
           setLoginMessage('');

@@ -12,6 +12,7 @@ import { analyticsSchema } from '@/features/analytics/schema';
 import { summarizeMetrics } from '@/features/admin/metrics';
 import { resolveEventImage } from '@/features/events/images';
 import { sanitizeEventText } from '@/features/events/text';
+import { normalizeLocationPreference } from '@/features/location/preference';
 const now = new Date('2026-09-21T12:00:00Z');
 describe('event images', () => {
   it('keeps official images and deterministically varies fallbacks', () => {
@@ -19,6 +20,15 @@ describe('event images', () => {
     expect(resolveEventImage({ ...base, cover_image_url: 'https://cdn.example.com/run.jpg', cover_image_source: 'official', has_usable_official_image: true })).toBe('https://cdn.example.com/run.jpg');
     expect(resolveEventImage({ ...base, id: 'same', cover_image_url: '[object Object]', has_usable_official_image: false })).toBe(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false }));
     expect(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false })).toBe(resolveEventImage({ ...base, id: 'same', cover_image_url: '', has_usable_official_image: false }));
+  });
+});
+describe('location preference', () => {
+  it('restores a manual city and radius from persisted data', () => {
+    expect(normalizeLocationPreference({ label: 'Itajubá, MG', latitude: -22.425, longitude: -45.452, radiusKm: 50 })).toMatchObject({ mode: 'manual', radiusKm: 50 });
+  });
+  it('keeps geolocation mode while rejecting malformed values', () => {
+    expect(normalizeLocationPreference({ label: 'Perto de você', latitude: -22, longitude: -45, mode: 'geolocation' })?.mode).toBe('geolocation');
+    expect(normalizeLocationPreference({ label: 'Brasil inteiro' })).toBeNull();
   });
 });
 describe('event text', () => {

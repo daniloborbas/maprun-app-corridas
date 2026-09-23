@@ -14,7 +14,7 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
     [sort, setSort] = useState<DiscoveryQuery['sort']>('date'),
     [limit, setLimit] = useState(4);
   const feed = useMemo(
-    () => getDiscoveryFeed(events, { location: location || undefined, category, sort }),
+    () => getDiscoveryFeed(events, { location: location || undefined, radius: location?.radiusKm, category, sort }),
     [events, location, category, sort],
   );
   return (
