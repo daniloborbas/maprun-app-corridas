@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Mountain, MapPin } from 'lucide-react';
 import type { RaceEvent, DiscoveryQuery } from '@/features/events/types';
@@ -13,6 +13,17 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
   const [category, setCategory] = useState(''),
     [sort, setSort] = useState<DiscoveryQuery['sort']>('date'),
     [limit, setLimit] = useState(4);
+  const filterRailRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const rail = filterRailRef.current;
+    if (!rail) return;
+    const target = category
+      ? rail.querySelector<HTMLElement>('[aria-pressed="true"]')
+      : sort !== 'date'
+        ? rail.querySelector<HTMLElement>('.sort-select')
+        : null;
+    target?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }, [category, sort]);
   const feed = useMemo(
     () => getDiscoveryFeed(events, { location: location || undefined, radius: location?.radiusKm, category, sort }),
     [events, location, category, sort],
@@ -60,7 +71,7 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
           <h1>Descobrir</h1>
         </div>
         <div className="feed-toolbar">
-          <div className="filter-scroll">
+          <div className="filter-scroll" ref={filterRailRef}>
             <div className="category-tabs" aria-label="Categorias">
               {[
                 ['', 'Para você'],

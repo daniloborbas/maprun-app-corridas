@@ -1782,6 +1782,8 @@ blockquote span {
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
     gap: 6px;
     padding: 2px 24px 4px 1px;
@@ -1805,6 +1807,10 @@ blockquote span {
   .category-tabs button {
     flex: 0 0 auto;
     white-space: nowrap;
+    scroll-snap-align: start;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
     font-size: 12px;
     padding: 8px 12px;
     border: 1px solid #e6ebe7;
@@ -1812,6 +1818,11 @@ blockquote span {
     min-height: 35px;
   }
   .category-tabs button.active { border-color: var(--green); }
+  .filter-scroll .sort-select {
+    scroll-snap-align: start;
+    font-family: var(--font-sans);
+    font-weight: 500;
+  }
   .sort-select {
     font-size: 10px;
     max-width: 112px;
