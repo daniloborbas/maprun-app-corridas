@@ -16,8 +16,10 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
   const { location } = useApp();
   const [category, setCategory] = useState(''),
     [sort, setSort] = useState<DiscoveryQuery['sort']>('date'),
-    [limit, setLimit] = useState(4);
+    [limit, setLimit] = useState(4),
+    [isLoadingMore, setIsLoadingMore] = useState(false);
   const filterRailRef = useRef<HTMLDivElement>(null);
+  const feedEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const rail = filterRailRef.current;
     if (!rail || !window.matchMedia('(max-width: 899px)').matches) return;
@@ -35,9 +37,26 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
     if (nextLeft !== visibleLeft) rail.scrollTo({ left: nextLeft, behavior: 'smooth' });
   }, [category, sort]);
   const feed = useMemo(
-    () => getDiscoveryFeed(events, { location: location || undefined, radius: location?.radiusKm, category, sort }),
+    () => Array.from(new Map(getDiscoveryFeed(events, { location: location || undefined, radius: location?.radiusKm, category, sort }).map((event) => [event.id, event])).values()),
     [events, location, category, sort],
   );
+  useEffect(() => {
+    setLimit(4);
+  }, [category, sort, location]);
+  useEffect(() => {
+    const sentinel = feedEndRef.current;
+    if (!sentinel || typeof IntersectionObserver === 'undefined' || !window.matchMedia('(max-width: 899px)').matches) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || isLoadingMore || limit >= feed.length) return;
+      setIsLoadingMore(true);
+      requestAnimationFrame(() => {
+        setLimit((current) => Math.min(current + 4, feed.length));
+        setIsLoadingMore(false);
+      });
+    }, { rootMargin: '640px 0px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [feed.length, isLoadingMore, limit]);
   return (
     <div className="discovery-layout">
       <aside className="discovery-intro">
@@ -171,11 +190,9 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
               description="Ainda não temos corridas publicadas nesta categoria. Explore outras provas."
             />
           )}
-          {feed.length > limit && (
-            <button className="button load-more" onClick={() => setLimit(limit + 4)}>
-              Descobrir mais corridas
-            </button>
-          )}
+          {feed.length > limit && <div ref={feedEndRef} className="mobile-feed-sentinel" aria-hidden="true" />}
+          {isLoadingMore && <div className="mobile-feed-loading" role="status" aria-label="Carregando mais corridas"><span /></div>}
+          {feed.length > 0 && limit >= feed.length && <p className="mobile-feed-end">Você viu todas as corridas disponíveis.</p>}
         </div>
       </section>
       <aside className="discovery-side">
