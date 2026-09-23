@@ -1784,7 +1784,8 @@ blockquote span {
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     gap: 6px;
-    padding: 2px 1px 4px;
+    padding: 2px 24px 4px 1px;
+    scroll-padding-inline: 16px 24px;
   }
   .filter-scroll::-webkit-scrollbar { display: none; }
   .filter-scroll .category-tabs {
@@ -1794,8 +1795,9 @@ blockquote span {
   }
   .filter-scroll .sort-select {
     flex: 0 0 auto;
-    width: 132px;
+    width: 148px;
     max-width: none;
+    white-space: nowrap;
   }
   .category-tabs {
     gap: 2px;
