@@ -6,6 +6,7 @@ import { classifyDiscoveryCandidate } from './classifier';
 import { enrichDiscoveredEvent } from './enrichment';
 import { findBestEventDeduplication } from './deduplication';
 import { calculateDiscoveryConfidence } from './confidence';
+import { observeAiFallback, sanitizeDiscoveryError, type DiscoveryAiMetrics } from './observability';
 export const providers = [htmlCalendarProvider];
 export class DiscoveryAlreadyRunning extends Error {}
 const STALE_MS = 10 * 60_000;
@@ -27,15 +28,25 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   const runId = run.id;
   const started = Date.now();
   const errors: string[] = [];
+  const errorDetails: Array<{ stage: string; type: string }> = [];
   let discovered=0, newCandidates=0, known=0, duplicates=0, failed=0, ignored=0, pastIgnored=0, enriched=0, ready=0, incomplete=0, conflicts=0, enrichmentErrors=0;
   let enrichmentBudget = 25;
+  const aiMetrics: DiscoveryAiMetrics = { aiFallbackNeeded: 0, aiCalls: 0, aiSuccesses: 0, aiFailures: 0, aiInputTokens: 0, aiOutputTokens: 0 };
   const aiEnabled = process.env.AI_EXTRACTION_ENABLED === 'true';
   let aiBudget = Math.max(0, Number.parseInt(process.env.AI_EXTRACTION_MAX_PER_RUN || '5', 10) || 5);
   const aiOptions = () => ({ enabled: aiEnabled, allowCall: aiEnabled && aiBudget > 0 });
-  const finish = async () => {
+  let finished = false;
+  const finish = async (fatal = false) => {
+    if (finished) return;
+    finished = true;
     const status = failed===0 ? 'completed' : (newCandidates || discovered ? 'partial' : 'failed');
-    const { error } = await client.from('discovery_runs').update({ status, finished_at:new Date().toISOString(), discovered_count:discovered, new_count:newCandidates, duplicate_count:duplicates, error_count:failed, error_details:errors }).eq('id',runId);
+    const { error } = await client.from('discovery_runs').update({ status: fatal ? 'failed' : status, finished_at:new Date().toISOString(), discovered_count:discovered, new_count:newCandidates, duplicate_count:duplicates, error_count:failed, error_details:errorDetails, sources_processed:sources.length, candidates_found:discovered, candidates_new:newCandidates, candidates_enriched:enriched, candidates_ignored:ignored + pastIgnored, errors_count:failed, ...aiMetrics }).eq('id',runId);
     if (error) console.error('[MapRun discovery cron:error]', { runId, code:error.code, message:error.message });
+  };
+  const recordAi = (result: { attempted: boolean; success: boolean; errorType?: string; usage?: { inputTokens?: number; outputTokens?: number } }) => {
+    if (!result.attempted) return;
+    observeAiFallback(aiMetrics, result);
+    if (!result.success) errorDetails.push(sanitizeDiscoveryError('ai', result.errorType ?? 'provider_error'));
   };
   try {
     const { data: pendingRows, error: pendingError } = await client.from('discovered_events').select('id,source_id,source_url,name,raw_title,event_date,registration_url,status,quality_status,enriched_at').eq('status','pending').limit(5000);
@@ -50,6 +61,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
         try {
             const source = sourceById.get(candidate.source_id);
             const result = await enrichDiscoveredEvent(candidate, source?.auto_ready_allowed === true, client, source?.trust_level ?? 'C', aiOptions());
+            recordAi(result.aiFallback);
             if (result.aiFallback.attempted) console.info('[MapRun discovery] AI fallback used', { candidateId:candidate.id, success:result.aiFallback.success, errorType:result.aiFallback.errorType });
             if (result.aiFallback.attempted) aiBudget--;
           if (result.past) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored', enriched_at:new Date().toISOString() }).eq('id', candidate.id); continue; }
@@ -60,9 +72,9 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
       }
     }
     for (const source of sources.filter((item) => item.active)) {
-      if (Date.now() - started > MAX_RUN_MS) { failed++; errors.push('Execução interrompida por limite de tempo.'); break; }
+      if (Date.now() - started > MAX_RUN_MS) { failed++; errors.push('Execução interrompida por limite de tempo.'); errorDetails.push(sanitizeDiscoveryError('discovery', 'timeout')); break; }
       const provider = providers.find((item) => item.supports(source));
-      if (!provider) { failed++; errors.push(`${source.name}: provider não suportado`); continue; }
+      if (!provider) { failed++; errors.push(`${source.name}: provider não suportado`); errorDetails.push(sanitizeDiscoveryError('source', 'provider_not_supported')); continue; }
       try {
         const candidates = await provider.discoverEvents(source);
         discovered += candidates.length;
@@ -78,6 +90,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
             enrichmentBudget--;
             try {
                 const result = await enrichDiscoveredEvent(candidate, source.auto_ready_allowed === true, client, source.trust_level ?? 'C', aiOptions());
+              recordAi(result.aiFallback);
               if (result.aiFallback.attempted) console.info('[MapRun discovery] AI fallback used', { candidateId:candidate.id, success:result.aiFallback.success, errorType:result.aiFallback.errorType });
               if (result.aiFallback.attempted) aiBudget--;
               if (result.past) { pastIgnored++; continue; }
@@ -89,6 +102,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
               else incomplete++;
             } catch {
               enrichmentErrors++;
+              errorDetails.push(sanitizeDiscoveryError('enrichment', 'error'));
               errors.push(`${source.name}: enriquecimento indisponível`);
             }
           }
@@ -134,19 +148,24 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
       } catch (error) {
         failed++;
         const message = error instanceof Error ? error.message : 'falha desconhecida';
+        errorDetails.push(sanitizeDiscoveryError('source', error instanceof Error ? error.name || 'provider_error' : 'provider_error'));
         errors.push(`${source.name}: ${message}`);
         console.error('[MapRun discovery cron:error]', { runId, sourceId:source.id, message });
       }
       const { error: sourceError } = await client.from('discovery_sources').update({ last_checked_at:new Date().toISOString() }).eq('id',source.id);
-      if (sourceError) { failed++; errors.push(`${source.name}: falha ao atualizar a fonte`); }
+      if (sourceError) { failed++; errors.push(`${source.name}: falha ao atualizar a fonte`); errorDetails.push(sanitizeDiscoveryError('source', 'update_failed')); }
     }
   } catch (error) {
     failed++;
+    const type = error instanceof Error ? error.name || 'fatal_error' : 'fatal_error';
     errors.push(error instanceof Error ? error.message : 'falha desconhecida');
+    errorDetails.push(sanitizeDiscoveryError('discovery', type));
+    await finish(true);
+    return { discovered, newCandidates, known, duplicates, errors:failed, sources:sources.length, ignored, pastIgnored, enriched, ready, incomplete, conflicts, enrichmentErrors, ...aiMetrics };
   } finally {
     await finish();
   }
-  const summary = { discovered, newCandidates, known, duplicates, errors:failed, sources:sources.length, ignored, pastIgnored, enriched, ready, incomplete, conflicts, enrichmentErrors };
+  const summary = { discovered, newCandidates, known, duplicates, errors:failed, sources:sources.length, ignored, pastIgnored, enriched, ready, incomplete, conflicts, enrichmentErrors, ...aiMetrics };
   console.info('[MapRun discovery classification]', summary);
   return summary;
 }
