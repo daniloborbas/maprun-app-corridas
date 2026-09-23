@@ -134,7 +134,7 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
                   <p><CalendarDays size={14} />{formatDate(event.start_date)}</p>
                   <div className="desktop-distance-badges">{event.event_distances.slice(0, 4).map((distance) => <span key={distance.label}>{distance.label}</span>)}{event.event_distances.length > 4 && <span>+{event.event_distances.length - 4}</span>}</div>
                   {event.price_from !== null && <strong>{event.price_from === 0 ? 'Gratuito' : `A partir de ${formatMoney(event.price_from)}`}</strong>}
-                  <a className="desktop-card-link" href={`/corrida/${event.slug}`} target="_blank" rel="noopener noreferrer">Mais detalhes <ArrowRight size={14} /></a>
+                  <Link className="desktop-card-link" href={`/corrida/${event.slug}`}>Mais detalhes <ArrowRight size={14} /></Link>
                   </div>
                   <EventActions event={event} />
                 </div>
