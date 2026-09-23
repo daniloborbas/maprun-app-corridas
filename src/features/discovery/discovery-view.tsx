@@ -82,6 +82,7 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
           </div>
           <h1>Descobrir</h1>
         </div>
+        <div className="desktop-discovery-heading">
         <h1 className="desktop-page-title">Descobrir corridas</h1>
         <div className="feed-toolbar">
           <div className="filter-scroll" ref={filterRailRef}>
@@ -120,6 +121,7 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
               </option>
             </select>
           </div>
+        </div>
         </div>
         <div className="desktop-experience-grid">
           <div className="desktop-race-grid">

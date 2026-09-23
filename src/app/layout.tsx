@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { AppProvider } from '@/components/app-provider';
 import { Navigation } from '@/components/navigation';
+import { SiteFooter } from '@/components/site-footer';
 import { db } from '@/lib/supabase/server';
 import { demoMode, siteUrl } from '@/lib/config';
 import { Inter, Poppins } from 'next/font/google';
@@ -55,6 +56,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             </div>
           )}
           <main id="conteudo">{children}</main>
+          <SiteFooter />
         </AppProvider>
       </body>
     </html>
