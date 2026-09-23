@@ -61,6 +61,13 @@ describe('inscrição segura', () => {
 });
 
 describe('destino de inscrição', () => {
+  it('classifica destinos genéricos, específicos e inválidos', async () => {
+    const { classifyRegistrationUrl } = await import('@/features/events/registration');
+    expect(classifyRegistrationUrl('https://portal.example/')).toBe('generic');
+    expect(classifyRegistrationUrl('https://portal.example/login')).toBe('generic');
+    expect(classifyRegistrationUrl('https://portal.example/evento/corrida-serra')).toBe('specific');
+    expect(classifyRegistrationUrl('http://portal.example/evento/corrida-serra')).toBe('invalid');
+  });
   it('prioriza inscrição específica', async () => {
     const { resolveRegistrationDestination } = await import('@/features/events/registration');
     expect(resolveRegistrationDestination({ registration_url: 'https://inscricoes.example/evento/x', official_url: 'https://organizador.example/x' })).toBe('https://inscricoes.example/evento/x');

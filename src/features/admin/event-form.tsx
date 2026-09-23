@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { saveAdminEvent, deleteAdminEvent } from './actions';
 import type { RaceEvent, EventDistance } from '@/features/events/types';
 import { generateEventEditorialContent } from '@/features/events/editorial';
+import { resolveRegistrationDestination } from '@/features/events/registration';
 export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 const toLocal = (v?: string | null) =>
   v ? new Date(new Date(v).getTime() - 3 * 3600000).toISOString().slice(0, 16) : '';
@@ -213,6 +214,11 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
         </label>
         {input('registration_url', 'URL direta de inscrição (HTTPS)', event?.registration_url, 'url')}
         <small>Use a página específica desta prova, não a página inicial da plataforma.</small>
+        {event && resolveRegistrationDestination(event) ? (
+          <a href={resolveRegistrationDestination(event) || undefined} target="_blank" rel="noreferrer" className="text-sm font-medium text-[#14D160]">
+            Abrir link
+          </a>
+        ) : null}
         {input('official_url', 'Site oficial (HTTPS)', event?.official_url, 'url')}
         {input('regulation_url', 'Regulamento (HTTPS)', event?.regulation_url, 'url')}
         {field('cover_image_url', 'URL da capa ou caminho do fallback', event?.cover_image_url)}
