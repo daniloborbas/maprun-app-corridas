@@ -43,7 +43,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
       else if (enrichmentBudget > 0 && (!candidate.enriched_at || Date.now() - Date.parse(candidate.enriched_at) > 24 * 60 * 60_000)) {
         enrichmentBudget--;
         try {
-            const result = await enrichDiscoveredEvent(candidate, sourceById.get(candidate.source_id)?.auto_ready_allowed === true);
+            const result = await enrichDiscoveredEvent(candidate, sourceById.get(candidate.source_id)?.auto_ready_allowed === true, client);
           if (result.past) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored', enriched_at:new Date().toISOString() }).eq('id', candidate.id); continue; }
           await client.from('discovered_events').update({ ...result.candidate, quality_status:result.qualityStatus }).eq('id', candidate.id);
           enriched++;
@@ -72,7 +72,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
           if (enrichmentBudget > 0) {
             enrichmentBudget--;
             try {
-                const result = await enrichDiscoveredEvent(candidate, source.auto_ready_allowed === true);
+                const result = await enrichDiscoveredEvent(candidate, source.auto_ready_allowed === true, client);
               if (result.past) { pastIgnored++; continue; }
               enrichedCandidate = { ...candidate, ...result.candidate };
               quality_status = result.qualityStatus;
