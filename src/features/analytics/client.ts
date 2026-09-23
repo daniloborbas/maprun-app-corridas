@@ -10,8 +10,13 @@ export function trackAnalyticsEvent(
     sessionId = crypto.randomUUID();
     sessionStorage.setItem('maprun.session', sessionId);
   }
+  let visitorId = localStorage.getItem('maprun.visitor');
+  if (!visitorId) {
+    visitorId = crypto.randomUUID();
+    localStorage.setItem('maprun.visitor', visitorId);
+  }
   const params = new URLSearchParams(location.search);
-  const acquisition: Record<string, string> = {};
+  const acquisition: Record<string, string> = { visitor_id: visitorId };
   ['utm_source', 'utm_medium', 'utm_campaign', 'ref'].forEach((k) => {
     const v = params.get(k);
     if (v) acquisition[k] = v.slice(0, 150);
@@ -32,7 +37,7 @@ export function trackAnalyticsEvent(
       eventId,
       sessionId,
       source: location.pathname.slice(0, 200),
-      properties: { ...stored, ...properties },
+      properties: { ...stored, referrer: document.referrer.slice(0, 500), ...properties },
     }),
     keepalive: true,
   }).catch(() => {});

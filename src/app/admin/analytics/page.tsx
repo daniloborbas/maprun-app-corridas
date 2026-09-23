@@ -25,10 +25,10 @@ export default async function MetricsPage({
     days === 1
       ? new Date(`${dateBR}T00:00:00-03:00`).toISOString()
       : new Date(now.getTime() - days * 86400000).toISOString();
-  const [result, profiles, races] = await Promise.all([
+  const [result, profiles, races, adminProfiles] = await Promise.all([
     access.client
       .from('analytics_events')
-      .select('event_name,event_id,session_id,user_id,source,created_at')
+      .select('event_name,event_id,session_id,user_id,source,properties,created_at')
       .gte('created_at', since)
       .order('created_at', { ascending: false })
       .limit(10000),
@@ -37,15 +37,20 @@ export default async function MetricsPage({
       .select('id', { count: 'exact', head: true })
       .gte('created_at', since),
     access.client.from('events').select('id,name,city,state'),
+    access.client.from('profiles').select('id').eq('role', 'admin'),
   ]);
   if (result.error) return <p className="error-message">Não foi possível carregar as métricas.</p>;
-  const rows = (result.data || []) as MetricRow[],
+  const adminIds = new Set((adminProfiles.data || []).map((p) => p.id));
+  const rows = ((result.data || []) as MetricRow[]).filter((row) => !row.user_id || !adminIds.has(row.user_id)),
     metrics = summarizeMetrics(rows);
   const ranking = new Map<
     string,
     { views: number; saves: number; shares: number; going: number; clicks: number }
   >();
+  const origins = new Map<string, number>();
   rows.forEach((r) => {
+    const origin = r.properties?.utm_source || r.properties?.referrer || 'Direct';
+    origins.set(origin, (origins.get(origin) || 0) + 1);
     if (!r.event_id) return;
     const item = ranking.get(r.event_id) || { views: 0, saves: 0, shares: 0, going: 0, clicks: 0 };
     if (r.event_name === 'race_view') item.views++;
@@ -68,6 +73,12 @@ export default async function MetricsPage({
         Período: {days === 1 ? 'hoje, horário de Brasília' : `últimos ${days} dias`}. Métricas de
         uso dependem de consentimento. “Online” significa atividade nos últimos 5 minutos.
       </p>
+      <h2>Origem do tráfego</h2>
+      <div className="metric-grid">
+        {[...origins.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([origin, total]) => (
+          <div className="metric" key={origin}><span>{origin}</span><strong>{total}</strong></div>
+        ))}
+      </div>
       <div className="metric-grid">
         {Object.entries({
           'Online agora': metrics.online,

@@ -24,6 +24,8 @@ export const analyticsSchema = z.object({
       utm_source: z.string().max(150).optional(),
       utm_medium: z.string().max(150).optional(),
       utm_campaign: z.string().max(150).optional(),
+      visitor_id: z.string().max(100).optional(),
+      referrer: z.string().max(500).optional(),
       ref: z.string().max(150).optional(),
       category: z.string().max(40).optional(),
       results: z.number().int().min(0).optional(),

@@ -5,6 +5,7 @@ export interface MetricRow {
   user_id?: string | null;
   source: string | null;
   created_at: string;
+  properties?: { utm_source?: string; utm_medium?: string; utm_campaign?: string; referrer?: string } | null;
 }
 export function summarizeMetrics(rows: MetricRow[], now = new Date()) {
   const count = (kind: string) => rows.filter((r) => r.event_name === kind).length;
