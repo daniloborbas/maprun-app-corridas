@@ -13,6 +13,7 @@ import { summarizeMetrics } from '@/features/admin/metrics';
 import { resolveEventImage } from '@/features/events/images';
 import { sanitizeEventText } from '@/features/events/text';
 import { normalizeLocationPreference } from '@/features/location/preference';
+import { resolveAvatarSource } from '@/components/user-avatar';
 const now = new Date('2026-09-21T12:00:00Z');
 describe('event images', () => {
   it('keeps official images and deterministically varies fallbacks', () => {
@@ -29,6 +30,13 @@ describe('location preference', () => {
   it('keeps geolocation mode while rejecting malformed values', () => {
     expect(normalizeLocationPreference({ label: 'Perto de você', latitude: -22, longitude: -45, mode: 'geolocation' })?.mode).toBe('geolocation');
     expect(normalizeLocationPreference({ label: 'Brasil inteiro' })).toBeNull();
+  });
+});
+describe('avatar fallback', () => {
+  it('prefers custom avatar, then Google, then initials', () => {
+    expect(resolveAvatarSource('https://storage/avatar.webp', 'https://google/avatar.jpg').source).toBe('custom');
+    expect(resolveAvatarSource('https://storage/avatar.webp', 'https://google/avatar.jpg', true).source).toBe('google');
+    expect(resolveAvatarSource(null, 'https://google/avatar.jpg', false, true).source).toBe('initials');
   });
 });
 describe('event text', () => {
