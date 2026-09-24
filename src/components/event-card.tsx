@@ -27,7 +27,14 @@ export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: 
   }, [event.id]);
   return (
     <article ref={ref} className="discovery-card">
-      <EventCover event={event} priority={index === 0} />
+      <div className="desktop-card-cover">
+        <EventCover event={event} priority={index === 0} />
+      </div>
+      <div className="mobile-card-cover" aria-hidden="true">
+        <div className="mobile-card-cover-background"><EventCover event={event} sizes="100vw" className="mobile-card-image mobile-card-image-background" /></div>
+        <div className="mobile-card-cover-overlay" />
+        <div className="mobile-card-cover-foreground"><EventCover event={event} priority={index === 0} sizes="100vw" className="mobile-card-image mobile-card-image-foreground" /></div>
+      </div>
       <div className="cover-shade" />
       <div className="card-top">
         <span className="eyebrow">
