@@ -149,7 +149,7 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
             {feed.slice(0, 6).map((event) => (
               <article className="desktop-race-card" key={event.id}>
                 <div className="desktop-race-image">
-                  <EventCover event={event} sizes="(min-width: 1440px) 24vw, 34vw" />
+                  <EventCover event={event} sizes="(min-width: 1440px) 24vw, 34vw" useFeedImage />
                   {event.distance_km !== undefined && <span className="desktop-distance-overlay">{Math.round(event.distance_km)} km de você</span>}
                   <div className="desktop-race-card-content">
                   <h2>{event.name}</h2>

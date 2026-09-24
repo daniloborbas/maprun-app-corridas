@@ -37,4 +37,9 @@ export function buildGeneratedCoverUrl(input: { slug: string; name: string; city
   return `/api/events/cover?${query.toString()}`;
 }
 
+export function buildGeneratedFeedImageUrl(input: { slug: string; name: string; city?: string; state?: string; category?: string; distances?: string[]; startDate?: string; price?: number | null }): string {
+  const query = new URLSearchParams({ slug: input.slug, name: input.name, city: input.city || '', state: input.state || '', category: input.category || 'rua', distances: (input.distances || []).join(', '), startDate: input.startDate || '', price: input.price == null ? '' : String(input.price) });
+  return `/api/events/cover?${query.toString()}`;
+}
+
 export const eventFallbackImages = FALLBACKS;

@@ -27,7 +27,7 @@ export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: 
   }, [event.id]);
   return (
     <article ref={ref} className="discovery-card">
-      <EventCover event={event} priority={index === 0} />
+      <EventCover event={event} priority={index === 0} useFeedImage />
       <div className="cover-shade" />
       <div className="card-top">
         <span className="eyebrow">
@@ -97,7 +97,7 @@ export function EventListCard({ event, grid = false }: { event: RaceEvent; grid?
   return (
     <article className={grid ? 'event-grid-card' : 'event-list-card'}>
       <Link href={`/corrida/${event.slug}`} className="list-image">
-        <EventCover event={event} sizes="(max-width: 700px) 45vw, 240px" />
+        <EventCover event={event} sizes="(max-width: 700px) 45vw, 240px" useFeedImage />
       </Link>
       <div className="list-content">
         <h3>

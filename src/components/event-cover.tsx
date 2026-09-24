@@ -7,14 +7,16 @@ export function EventCover({
   event,
   priority = false,
   sizes = '(max-width: 700px) 100vw, 700px',
+  useFeedImage = false,
 }: {
   event: RaceEvent;
   priority?: boolean;
   sizes?: string;
+  useFeedImage?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   const fallback = resolveEventFallbackImage(event);
-  const activeImage = resolveEventImage(event);
+  const activeImage = useFeedImage && event.feed_image_url ? event.feed_image_url : resolveEventImage(event);
   const src = failed ? fallback : activeImage;
   return (
     <Image

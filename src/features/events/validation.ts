@@ -71,6 +71,7 @@ export const eventSchema = z
         'Imagem deve ter URL HTTPS.',
       ),
     cover_image_source: z.enum(['official', 'generated', 'fallback']),
+    feed_image_url: z.string().max(2000).nullable().optional(),
     fallback_image_key: z.string().max(100).nullable().optional(),
     has_usable_official_image: z.boolean(),
     short_tagline: z.string().max(100),

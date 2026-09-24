@@ -3,11 +3,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Plus, Trash2 } from 'lucide-react';
-import { saveAdminEvent, deleteAdminEvent } from './actions';
+import { saveAdminEvent, deleteAdminEvent, regenerateAdminFeedImage } from './actions';
 import type { RaceEvent, EventDistance } from '@/features/events/types';
 import { generateEventEditorialContent } from '@/features/events/editorial';
 import { classifyRegistrationUrl, resolveRegistrationDestination } from '@/features/events/registration';
 import { EVENT_FALLBACK_IMAGES } from '@/features/events/fallback-images';
+import { buildGeneratedFeedImageUrl } from '@/features/events/images';
 export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 const toLocal = (v?: string | null) => {
   if (!v) return '';
@@ -23,6 +24,14 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       start_time: distance.start_time ?? '',
     })) || [{ label: '5 km', distance_km: 5, category: 'rua' }],
   );
+  async function regenerateFeedImage() {
+    if (!event?.id) return;
+    setBusy(true);
+    const result = await regenerateAdminFeedImage(event.id);
+    setMessage(result.error || 'Imagem do feed regenerada.');
+    setBusy(false);
+    if (!result.error) router.refresh();
+  }
   const [existingSources] = useState(() => event?.event_sources?.map((source) => ({ source_name: source.source_name, source_url: source.source_url, source_method: source.source_method || source.import_method || 'manual' })) || []);
   const [officialUrl, setOfficialUrl] = useState(event?.official_url || '');
   const [registrationUrl, setRegistrationUrl] = useState(event?.registration_url || '');
@@ -59,6 +68,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     if (Object.keys(errors).length || disableSave) { setMessage(disableSave ? 'Resolva as informações divergentes antes de salvar.' : 'Revise os campos destacados abaixo.'); setBusy(false); const first = e.currentTarget.elements.namedItem(Object.keys(errors)[0]) as HTMLElement | null; first?.focus(); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     let result: Awaited<ReturnType<typeof saveAdminEvent>>;
     const attemptId = crypto.randomUUID().slice(0, 8);
+    const nextStatus = forceDraft === 'finished' ? 'finished' : forceDraft ? 'draft' : text('status');
     try {
       result = await saveAdminEvent({
       id: event?.id && event.id.length > 10 ? event.id : undefined,
@@ -67,6 +77,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       short_description: text('short_description'),
       description: text('description'),
       description_source: text('description_source') || 'unknown',
+      feed_image_url: nextStatus === 'published' && !event?.feed_image_url ? buildGeneratedFeedImageUrl({ slug: text('slug') || slugify(text('name')), name: text('name'), city: text('city'), state: text('state').toUpperCase(), category: text('event_category'), distances: distances.map((d) => d.label), startDate: text('start_date'), price: num('price_from') }) : (event?.feed_image_url || null),
       start_date: `${text('start_date')}:00-03:00`,
       end_date: text('end_date') ? `${text('end_date')}:00-03:00` : null,
       city: text('city'),
@@ -87,7 +98,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       fallback_image_key: fallbackImageKey,
       has_usable_official_image: data.has('has_usable_official_image'),
       short_tagline: text('short_tagline'),
-      status: forceDraft === 'finished' ? 'finished' : forceDraft ? 'draft' : text('status'),
+      status: nextStatus,
       organizer_verified: data.has('organizer_verified'),
       event_distances: distances.map((d, i) => ({ ...d, order_index: i })),
       source_name: sourceMethod === 'url' ? 'Importação por URL' : text('source_name'),
@@ -298,6 +309,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
           <input type="hidden" name="description_source" defaultValue={event?.description_source || 'unknown'} />
           <textarea name="description" defaultValue={event?.description} onChange={(e) => { const source = e.currentTarget.form?.elements.namedItem('description_source') as HTMLInputElement | null; if (source && source.value !== 'editorial_generated') source.value = 'manual'; }} />
           <small>Exibida na página completa da corrida.</small>
+          {event?.id && <button type="button" className="text-button" onClick={regenerateFeedImage} disabled={busy}>Regenerar imagem do feed</button>}
         </label>
         <div className="wide">
           <button type="button" className="text-button" onClick={(e) => generateDescriptions(e.currentTarget.form as HTMLFormElement)}>
