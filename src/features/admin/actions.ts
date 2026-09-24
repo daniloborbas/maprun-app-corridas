@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { OpenAIFeedImageGenerator } from '@/features/events/feed-image-generator';
 import sharp from 'sharp';
+import { shouldGeneratePublishedFeedImage } from './feed-image-trigger';
 export async function saveAdminEvent(input: unknown, attemptId?: string): Promise<{ id?: string; error?: string; diagnosticId?: string }> {
   const diagnosticId = attemptId && /^[a-z0-9]{8}$/i.test(attemptId) ? attemptId : crypto.randomUUID().slice(0, 8);
   console.error('[MapRun event-save:start]', { diagnosticId });
@@ -45,7 +46,11 @@ export async function saveAdminEvent(input: unknown, attemptId?: string): Promis
       return { error: error.code === '23505' || detail.includes('slug') ? 'Este slug já está em uso.' : error.code === '23514' && detail.includes('latitude') ? 'Latitude e longitude devem ser preenchidas juntas.' : 'Não foi possível salvar o evento.', diagnosticId };
     }
     revalidatePath('/', 'layout');
-    return { id: String(data) };
+    const eventId = String(data);
+    if (shouldGeneratePublishedFeedImage({ status: parsed.data.status, feedImageUrl: parsed.data.feed_image_url, feedImageSource: parsed.data.feed_image_source })) {
+      void generatePublishedFeedImage(eventId, 'admin_publish').catch((error) => console.error('[MapRun feed-image trigger]', { event_id: eventId, trigger: 'admin_publish', status: 'failed', type: error instanceof Error ? error.name : 'unknown' }));
+    }
+    return { id: eventId };
   } catch (error) {
     if (error instanceof Error && (error.message === 'Autenticação necessária.' || error.message.includes('Acesso restrito'))) return { error: 'Sua sessão não possui acesso administrativo. Entre novamente.' };
     console.error('[MapRun saveAdminEvent exception]', { diagnosticId, name: error instanceof Error ? error.name : 'Unknown', message: error instanceof Error ? error.message : String(error) });
@@ -94,8 +99,11 @@ export async function regenerateAdminFeedImage(id: string) {
   } catch (error) { console.error('[MapRun feed-image]', { type: error instanceof Error ? error.message : 'unknown' }); return { error: 'Não foi possível gerar a imagem agora.' }; }
 }
 
-export async function generatePublishedFeedImage(id: string) {
-  return regenerateAdminFeedImage(id);
+export async function generatePublishedFeedImage(id: string, trigger = 'admin_publish') {
+  console.info('[MapRun feed-image trigger]', { event_id: id, trigger, status: 'started' });
+  const result = await regenerateAdminFeedImage(id);
+  console.info('[MapRun feed-image trigger]', { event_id: id, trigger, status: result.error ? 'failed' : 'succeeded', ...(result.error ? { type: 'provider_or_storage_error' } : {}) });
+  return result;
 }
 
 export async function uploadAdminFeedImage(id: string, input: { dataUrl: string; mimeType: string }) {

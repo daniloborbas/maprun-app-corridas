@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Plus, Trash2 } from 'lucide-react';
-import { saveAdminEvent, deleteAdminEvent, regenerateAdminFeedImage, generatePublishedFeedImage, uploadAdminFeedImage } from './actions';
+import { saveAdminEvent, deleteAdminEvent, regenerateAdminFeedImage, uploadAdminFeedImage } from './actions';
 import type { RaceEvent, EventDistance } from '@/features/events/types';
 import { generateEventEditorialContent } from '@/features/events/editorial';
 import { classifyRegistrationUrl, resolveRegistrationDestination } from '@/features/events/registration';
@@ -138,9 +138,6 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     if (result.error) { const next = { ...fieldErrors }; if (result.error.includes('slug')) next.slug = result.error; else if (result.error.includes('coordenadas')) { next.latitude = result.error; next.longitude = result.error; } setFieldErrors(next); const safe = Boolean(result.diagnosticId) || result.error.startsWith('Já existe') || result.error.startsWith('Este slug') || result.error.startsWith('Sua sessão') || result.error.startsWith('A categoria') || result.error.startsWith('Não foi possível salvar uma'); setMessage(safe ? (result.diagnosticId ? `${result.error} Código de diagnóstico: ${result.diagnosticId}` : result.error) : 'Não foi possível salvar agora. Tente novamente.'); }
     else {
       setMessage('Evento salvo.');
-      if (nextStatus === 'published' && result.id && !event?.feed_image_url) {
-        void generatePublishedFeedImage(result.id).catch((error) => console.error('[MapRun feed-image publish]', { type: error instanceof Error ? error.name : 'unknown' }));
-      }
       router.push('/admin/eventos');
       router.refresh();
     }
@@ -307,6 +304,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
           <strong>Imagem do feed</strong>
           {event?.feed_image_url && !feedImageError ? <Image src={event.feed_image_url} alt="Prévia da imagem do feed" width={160} height={200} onError={() => setFeedImageError(true)} style={{ display: 'block', objectFit: 'cover', borderRadius: 12, margin: '8px 0' }} /> : <small>{event?.feed_image_url ? 'Não foi possível carregar a imagem do feed.' : 'Nenhuma imagem de feed gerada ainda.'}</small>}
           <small>Origem: {event?.feed_image_source === 'manual_upload' ? 'Imagem enviada manualmente' : event?.feed_image_source === 'ai_generated' ? 'Gerada por IA' : event?.feed_image_source === 'legacy' ? 'Legada' : 'Nenhuma'}</small>
+          {!event?.feed_image_url && event?.id && <button type="button" className="text-button image-change-button" onClick={regenerateFeedImage} disabled={busy}>{busy ? 'Gerando imagem…' : 'Gerar imagem com IA'}</button>}
           {event?.id && <div className="image-control-card-actions">
             <button type="button" className="text-button image-change-button" onClick={() => setFeedImageOpen((open) => !open)} disabled={busy}>Mudar imagem {feedImageOpen ? '▴' : '▾'}</button>
             {feedImageOpen && <div className="image-actions-menu">
