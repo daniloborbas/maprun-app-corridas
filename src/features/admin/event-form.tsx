@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -277,6 +278,11 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
         </div>
         {input('regulation_url', 'Regulamento (HTTPS)', event?.regulation_url, 'url')}
         {field('cover_image_url', 'URL da capa ou caminho do fallback', event?.cover_image_url)}
+        <div className="wide official-art-preview">
+          <strong>Arte oficial da corrida</strong>
+          <small>Exibida na página de detalhes da corrida.</small>
+          {event?.cover_image_url ? <img src={event.cover_image_url} alt="Prévia da arte oficial da corrida" /> : <small>Nenhuma arte oficial definida.</small>}
+        </div>
         <label>
           Origem da imagem
           <select name="cover_image_source" defaultValue={event?.cover_image_source || 'fallback'}>
