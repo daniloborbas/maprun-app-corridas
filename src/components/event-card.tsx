@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
-import { ArrowRight, CalendarDays, MapPin } from 'lucide-react';
+import { ArrowRight, CalendarDays, MapPin, Route } from 'lucide-react';
 import type { RaceEvent } from '@/features/events/types';
 import { formatDate, formatMoney } from '@/features/events/discovery';
 import { EventCover } from './event-cover';
@@ -28,20 +28,35 @@ export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: 
   }, [event.id]);
   return (
     <article ref={ref} className="discovery-card">
-      <div className="card-media">
-        <EventCover event={event} priority={index === 0} useFeedImage />
-        <div className="cover-shade" />
-        <span className="category-caption card-media-badge">
-          {event.event_category === 'trail' ? 'TRAIL RUN' : event.event_category === 'night' ? 'NIGHT RUN' : event.event_category === 'kids' ? 'PARA OS PEQUENOS' : 'CORRIDA DE RUA'}
+      <EventCover event={event} priority={index === 0} useFeedImage />
+      <div className="cover-shade" />
+      <div className="card-top">
+        <span className="eyebrow">
+          {event.event_category === 'trail'
+            ? 'ENTRE TRILHAS E MONTANHAS'
+            : 'ENCONTRE SUA PRÓXIMA CORRIDA'}
         </span>
-        <EventActions event={event} />
+        {event.sponsored && <span className="sponsored-badge">Patrocinado · exemplo</span>}
+        {sanitizeEventText(event.short_description) && <p>{sanitizeEventText(event.short_description)}</p>}
+        <span className="short-rule" />
       </div>
+      {event.distance_km !== undefined && (
+        <span className="desktop-card-distance">
+          <MapPin size={15} />
+          {Math.round(event.distance_km)} km de você
+        </span>
+      )}
       <div className="card-content">
         <span className="category-caption">
-          {event.sponsored ? 'PATROCINADO' : 'MAPRUN'}
+          {event.event_category === 'trail'
+            ? 'TRAIL RUN'
+            : event.event_category === 'night'
+              ? 'NIGHT RUN'
+              : event.event_category === 'kids'
+                ? 'PARA OS PEQUENOS'
+                : 'CORRIDA DE RUA'}
         </span>
         <h2>{event.name}</h2>
-        {sanitizeEventText(event.short_description) && <p className="card-description">{sanitizeEventText(event.short_description)}</p>}
         {getRegistrationStatusPresentation(event.registration_status).disabled && <span className={`registration-status-card ${getRegistrationStatusPresentation(event.registration_status).status}`}>{getRegistrationStatusPresentation(event.registration_status).shortLabel}</span>}
         <p>
           <MapPin size={16} />
@@ -51,7 +66,10 @@ export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: 
           <CalendarDays size={16} />
           {formatDate(event.start_date)}
         </p>
-        <div className="card-distance-chips">{event.event_distances.map((d) => <span key={d.label}>{d.label}</span>)}</div>
+        <p>
+          <Route size={16} />
+          {event.event_distances.map((d) => d.label).join(' · ')}
+        </p>
         {event.price_from !== null && (
           <p className="card-price">
             {event.price_from === 0 ? 'Gratuito' : `A partir de ${formatMoney(event.price_from)}`}
@@ -67,6 +85,12 @@ export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: 
           Ver detalhes
           <ArrowRight size={18} />
         </Link>
+      </div>
+      <EventActions event={event} />
+      <div className="card-bottom">
+        <span>{String(index + 1).padStart(2, '0')}</span>
+        <span>Continue descobrindo ↓</span>
+        <span>MAPRUN</span>
       </div>
     </article>
   );
