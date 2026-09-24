@@ -44,6 +44,19 @@ describe('imagem importada', () => {
 });
 
 describe('conteúdo editorial e imagens oficiais', () => {
+  it('preserva o horário local do evento ao gerar a descrição', () => {
+    const draft=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"IFSULDEMINAS","startDate":"2026-09-27T08:00:00-03:00"}</script>', 'https://example.com/race');
+    expect(draft.startTime).toBe('08:00');
+    expect(draft.description).toContain('às 08:00');
+    expect(draft.description).not.toContain('11:00');
+  });
+
+  it('não inventa horário quando a data não informa hora', () => {
+    const draft=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Prova","startDate":"2026-11-15"}</script>', 'https://example.com/race');
+    expect(draft.startTime).toBe('');
+    expect(draft.description).not.toMatch(/às 00:00|às 03:00/);
+  });
+
   it('gera descrições factuais sanitizadas a partir dos campos disponíveis', () => {
     const draft=extractEventMetadata('<script type="application/ld+json">{"@type":"Event","name":"Corrida Serra","startDate":"2026-10-18T07:00:00-03:00","location":{"address":{"addressLocality":"Itajubá","addressRegion":"MG"}},"organizer":{"name":"Equipe Serra"}}</script><p>5 km</p>','https://example.com/race');
     expect(draft.shortDescription).toContain('Corrida Serra');

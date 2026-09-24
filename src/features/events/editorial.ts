@@ -17,7 +17,8 @@ const clean = (value: unknown) => sanitizeEventText(value).replace(/\s+/g, ' ').
 
 function dateLabel(value: string | null): string {
   if (!value) return '';
-  const date = new Date(value);
+  const civilMidnight = /^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.000)?(?:Z|\+00:00)$/.exec(value);
+  const date = new Date(civilMidnight ? `${civilMidnight[1]}T00:00:00Z` : value);
   return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(date);
 }
 
