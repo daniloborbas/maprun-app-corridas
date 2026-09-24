@@ -11,7 +11,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import type { RaceEvent } from '@/features/events/types';
-import { formatDate, formatMoney, isEnded } from '@/features/events/discovery';
+import { formatDate, formatMoney, formatWeekday, isEnded } from '@/features/events/discovery';
 import { EventCover } from './event-cover';
 import { EventActions } from './event-actions';
 import { sanitizeEventText } from '@/features/events/text';
@@ -58,14 +58,11 @@ export function EventDetails({ event }: { event: RaceEvent }) {
             <p>
               <strong>{formatDate(event.start_date)}</strong>
               <span>
-                {new Intl.DateTimeFormat('pt-BR', {
-                  weekday: 'long',
-                  timeZone: 'America/Sao_Paulo',
-                }).format(new Date(event.start_date))}
+                {formatWeekday(event.start_date)}
               </span>
             </p>
           </div>
-          <div>
+          {!/^\d{4}-\d{2}-\d{2}$/.test(event.start_date) && <div>
             <Clock3 />
             <p>
               <span>Largada às</span>
@@ -77,7 +74,7 @@ export function EventDetails({ event }: { event: RaceEvent }) {
                 }).format(new Date(event.start_date))}
               </strong>
             </p>
-          </div>
+          </div>}
         </div>
         <div className="venue">
           <MapPin />

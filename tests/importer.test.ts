@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { extractEventMetadata, importUrlSchema } from '@/features/importer/url-import';
+import { dateValue, extractEventMetadata, importUrlSchema } from '@/features/importer/url-import';
 import { mergeEventImports } from '@/features/importer/merge-imports';
 const html = `<html><head><title>Corrida Serra</title><meta property="og:title" content="Corrida Serra 2026"><meta property="og:description" content="Uma prova incrível"><meta property="og:image" content="https://cdn.example.com/cover.jpg"><script type="application/ld+json">{"@context":"https://schema.org","@type":"Event","name":"Corrida Serra 2026","description":"Uma prova incrível","startDate":"2026-10-18T07:00:00-03:00","location":{"@type":"Place","name":"Parque Central","address":{"@type":"PostalAddress","streetAddress":"Rua das Flores, 10","addressLocality":"Itajubá","addressRegion":"MG"}},"organizer":{"@type":"Organization","name":"Equipe Serra"},"offers":{"price":"89","url":"https://tickets.example.com/race"}}</script></head><body><p>Distâncias: 5 km, 10K e meia maratona</p></body></html>`;
 describe('importador determinístico', () => {
+  it('preserva datas civis e normaliza datas brasileiras sem timezone', () => {
+    expect(dateValue('2026-11-15')).toBe('2026-11-15');
+    expect(dateValue('29/11/2026')).toBe('2026-11-29');
+    expect(dateValue('2028-02-29')).toBe('2028-02-29');
+    expect(dateValue('2026-02-30')).toBeNull();
+  });
+  it('mantém timestamps reais como timestamps', () => {
+    expect(dateValue('2026-11-15T06:30:00-03:00')).toBe('2026-11-15T09:30:00.000Z');
+    expect(dateValue('2026-11-15T03:00:00Z')).toBe('2026-11-15T03:00:00.000Z');
+  });
   it('prioriza JSON-LD Event e extrai fallback semântico', () => { const draft=extractEventMetadata(html,'https://example.com/race'); expect(draft.name).toBe('Corrida Serra 2026'); expect(draft.city).toBe('Itajubá'); expect(draft.state).toBe('MG'); expect(draft.priceFrom).toBe(89); expect(draft.coverImageUrl).toContain('cover.jpg'); expect(draft.distances.map(d=>d.distance_km)).toEqual(expect.arrayContaining([5,10,21.097])); });
   it('rejeita esquemas e formas de URL inadequadas', () => { expect(importUrlSchema.safeParse('javascript:alert(1)').success).toBe(false); expect(importUrlSchema.safeParse('file:///tmp/a').success).toBe(false); expect(importUrlSchema.safeParse('https://example.com/race').success).toBe(true); });
   it('deixa ausentes vazios, sem inventar data', () => { const draft=extractEventMetadata('<html><head><title>Evento</title><meta property="article:published_time" content="2026-09-22"></head></html>','https://example.com/x'); expect(draft.startDate).toBeNull(); expect(draft.city).toBe(''); expect(draft.slug).toBe('evento'); });

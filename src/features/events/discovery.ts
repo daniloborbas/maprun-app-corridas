@@ -77,13 +77,17 @@ export const searchEvents = getDiscoveryFeed;
 export const getUpcomingEvents = (events: RaceEvent[]) => getDiscoveryFeed(events);
 export const getNearbyEvents = (events: RaceEvent[], location: Coordinates, radius = 100) =>
   getDiscoveryFeed(events, { location, radius, sort: 'nearby' });
-export const formatDate = (date: string) =>
-  new Intl.DateTimeFormat('pt-BR', {
+export const formatDate = (date: string) => {
+  const civil = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (civil) return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`));
+  return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
     timeZone: 'America/Sao_Paulo',
   }).format(new Date(date));
+};
+export const formatWeekday = (date: string) => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone: /^(\d{4})-(\d{2})-(\d{2})$/.test(date) ? 'UTC' : 'America/Sao_Paulo' }).format(new Date(/^(\d{4})-(\d{2})-(\d{2})$/.test(date) ? `${date}T00:00:00Z` : date));
 export const formatMoney = (price: number) =>
   new Intl.NumberFormat('pt-BR', {
     style: 'currency',

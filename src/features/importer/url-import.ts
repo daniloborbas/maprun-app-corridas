@@ -44,7 +44,23 @@ export function extractRelevantPageText(html: string, limit = EXTRACTION_TEXT_LI
 function embeddedRecords(html: string): JsonLdRecord[] { const records: JsonLdRecord[]=[]; for(const m of html.matchAll(/<script[^>]*(?:id=["']__NEXT_DATA__["']|type=["']application\/json["'])[^>]*>([\s\S]*?)<\/script>/gi)){ try { const value: unknown=JSON.parse(m[1]); const visit=(v: unknown, depth=0)=>{ if(depth>5||records.length>100)return; if(Array.isArray(v)){v.slice(0,100).forEach(x=>visit(x,depth+1));return;} if(!isRecord(v))return; records.push(v); Object.values(v).forEach(x=>visit(x,depth+1)); }; visit(value); } catch {} } return records; }
 function registrationLink(html: string): string { const candidates=[...html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)].map(m=>({url:decode(m[1]),text:textOf(m[2]).toLowerCase()})); const strong=/(inscreva-se|inscriç(?:ão|ões)|participar|garanta sua vaga|comprar (?:inscrição|ingresso)|quero participar)/i; const blocked=/(login|contato|whatsapp|instagram|facebook|termos|política)/i; return candidates.filter(x=>classifyRegistrationUrl(x.url)==='specific'&&!blocked.test(x.text)).sort((a,b)=>Number(strong.test(b.text))-Number(strong.test(a.text)))[0]?.url || ''; }
 function usableImage(value: unknown): string { if (typeof value !== 'string' || !/^https?:\/\//i.test(value)) return ''; const url = value.trim(); return /(favicon|logo|avatar|icon|sprite|pixel|tracking)/i.test(new URL(url).pathname) ? '' : url; }
-function dateValue(v: unknown): string | null { const s = typeof v === 'string' ? v : ''; if (!s) return null; const iso = Date.parse(s); if (!Number.isNaN(iso)) return new Date(iso).toISOString(); const m=s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/); return m ? new Date(`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T00:00:00-03:00`).toISOString() : null; }
+export function dateValue(v: unknown): string | null {
+  const s = typeof v === 'string' ? v.trim() : '';
+  if (!s) return null;
+  const civil = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const validCivil = (year: number, month: number, day: number) => {
+    const value = new Date(Date.UTC(year, month - 1, day));
+    return value.getUTCFullYear() === year && value.getUTCMonth() === month - 1 && value.getUTCDate() === day;
+  };
+  if (civil) return validCivil(Number(civil[1]), Number(civil[2]), Number(civil[3])) ? s : null;
+  const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (br) {
+    const year = Number(br[3]), month = Number(br[2]), day = Number(br[1]);
+    return validCivil(year, month, day) ? `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
+  }
+  const iso = Date.parse(s);
+  return Number.isNaN(iso) ? null : new Date(iso).toISOString();
+}
 function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 function distances(text: string) { const found = new Map<number|string,{label:string;distance_km:number|null;category:string}>(); const patterns=[/(\d{1,3}(?:[,.]\d{1,3})?)\s*(?:km|k)\b/gi,/\b(meia\s*maratona|maratona|caminhada|kids)\b/gi]; for(const p of patterns) for(const m of text.matchAll(p)){const raw=m[1]; const n=/^\d/.test(raw) ? Number(raw.replace(',','.')) : raw.toLowerCase().includes('meia') ? 21.097 : raw.toLowerCase().includes('maratona') ? 42.195 : null; const label=n ? `${n % 1 ? n.toString().replace('.',',') : n} km` : raw; found.set(n ?? label,{label,distance_km:n,category:raw.toLowerCase().includes('trail')?'trail':'rua'});} return [...found.values()].slice(0,20); }
 function isPortalDasCorridas(sourceUrl: string) { try { return new URL(sourceUrl).hostname.toLowerCase().replace(/^www\./, '') === 'portaldascorridas.com.br'; } catch { return false; } }
