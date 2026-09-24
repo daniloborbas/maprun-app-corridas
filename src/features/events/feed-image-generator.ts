@@ -34,7 +34,7 @@ export function buildFeedImagePrompt(event: FeedImageContext): string {
   ].filter(Boolean).join(' ');
 }
 
-export interface FeedImageGenerator { generate(event: FeedImageContext): Promise<{ bytes: Buffer; mimeType: string; prompt: string; provider: string; durationMs: number }>; }
+export interface FeedImageGenerator { generate(event: FeedImageContext): Promise<{ bytes: Buffer; mobileBytes: Buffer; mimeType: string; prompt: string; provider: string; durationMs: number }>; }
 
 export class OpenAIFeedImageGenerator implements FeedImageGenerator {
   async generate(event: FeedImageContext) {
@@ -54,7 +54,11 @@ export class OpenAIFeedImageGenerator implements FeedImageGenerator {
     });
     const encoded = result.data?.[0]?.b64_json;
     if (!encoded) throw new Error('provider_empty_image');
-    const bytes = await sharp(Buffer.from(encoded, 'base64')).resize(800, 1000, { fit: 'cover', position: 'centre' }).webp({ quality: 85 }).toBuffer();
-    return { bytes, mimeType: 'image/webp', prompt, provider: 'openai', durationMs: Date.now() - started };
+    const source = sharp(Buffer.from(encoded, 'base64'));
+    const [bytes, mobileBytes] = await Promise.all([
+      source.clone().resize(800, 1000, { fit: 'cover', position: 'centre' }).webp({ quality: 78 }).toBuffer(),
+      source.clone().resize(480, 600, { fit: 'cover', position: 'centre' }).webp({ quality: 76 }).toBuffer(),
+    ]);
+    return { bytes, mobileBytes, mimeType: 'image/webp', prompt, provider: 'openai', durationMs: Date.now() - started };
   }
 }

@@ -530,9 +530,14 @@ label,
   background: #344b3c;
 }
 .event-image {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   transition: transform 0.7s;
 }
+.event-image + img,
+picture:has(> .event-image) { display: block; width: 100%; height: 100%; }
 @media (min-width: 761px) {
   .details-page {
     max-width: 1240px;

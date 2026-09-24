@@ -77,9 +77,14 @@ export async function regenerateAdminFeedImage(id: string) {
     const { data: event, error: readError } = await client.from('events').select('id,slug,name,city,state,venue,event_category,description,start_date,feed_image_url,event_distances(label)').eq('id', id).maybeSingle();
     if (readError || !event) return { error: 'Evento não encontrado.' };
     const generated = await new OpenAIFeedImageGenerator().generate(event);
-    const path = `${id}/feed-${Date.now()}.webp`;
-    const upload = await client.storage.from('event-feed').upload(path, new Blob([new Uint8Array(generated.bytes)], { type: generated.mimeType }), { contentType: generated.mimeType, cacheControl: '31536000', upsert: true });
+    const stamp = Date.now();
+    const path = `${id}/feed-${stamp}-800.webp`;
+    const mobilePath = `${id}/feed-${stamp}-480.webp`;
+    const storage = client.storage.from('event-feed');
+    const upload = await storage.upload(path, new Blob([new Uint8Array(generated.bytes)], { type: generated.mimeType }), { contentType: generated.mimeType, cacheControl: '31536000, immutable', upsert: false });
     if (upload.error) throw new Error('storage_upload_failed');
+    const mobileUpload = await storage.upload(mobilePath, new Blob([new Uint8Array(generated.mobileBytes)], { type: generated.mimeType }), { contentType: generated.mimeType, cacheControl: '31536000, immutable', upsert: false });
+    if (mobileUpload.error) throw new Error('storage_mobile_upload_failed');
     const { data: publicData } = client.storage.from('event-feed').getPublicUrl(path);
     const feedImageUrl = publicData.publicUrl;
     const { error } = await client.from('events').update({ feed_image_url: feedImageUrl, feed_image_source: 'ai_generated' }).eq('id', id);
@@ -103,10 +108,19 @@ export async function uploadAdminFeedImage(id: string, input: { dataUrl: string;
     if (!match) return { error: 'Arquivo inválido.' };
     const source = Buffer.from(match[1], 'base64');
     if (source.byteLength > 8 * 1024 * 1024) return { error: 'A imagem deve ter no máximo 8 MB.' };
-    const bytes = await sharp(source).resize(800, 1000, { fit: 'cover', position: 'centre' }).webp({ quality: 85 }).toBuffer();
-    const path = `${id}/manual-${Date.now()}.webp`;
-    const upload = await client.storage.from('event-feed').upload(path, new Blob([new Uint8Array(bytes)], { type: 'image/webp' }), { contentType: 'image/webp', cacheControl: '31536000', upsert: true });
+    const processed = sharp(source);
+    const [bytes, mobileBytes] = await Promise.all([
+      processed.clone().resize(800, 1000, { fit: 'cover', position: 'centre' }).webp({ quality: 78 }).toBuffer(),
+      processed.clone().resize(480, 600, { fit: 'cover', position: 'centre' }).webp({ quality: 76 }).toBuffer(),
+    ]);
+    const stamp = Date.now();
+    const path = `${id}/manual-${stamp}-800.webp`;
+    const mobilePath = `${id}/manual-${stamp}-480.webp`;
+    const storage = client.storage.from('event-feed');
+    const upload = await storage.upload(path, new Blob([new Uint8Array(bytes)], { type: 'image/webp' }), { contentType: 'image/webp', cacheControl: '31536000, immutable', upsert: false });
     if (upload.error) throw new Error('storage_upload_failed');
+    const mobileUpload = await storage.upload(mobilePath, new Blob([new Uint8Array(mobileBytes)], { type: 'image/webp' }), { contentType: 'image/webp', cacheControl: '31536000, immutable', upsert: false });
+    if (mobileUpload.error) throw new Error('storage_mobile_upload_failed');
     const { data: publicData } = client.storage.from('event-feed').getPublicUrl(path);
     const feedImageUrl = publicData.publicUrl;
     const { error } = await client.from('events').update({ feed_image_url: feedImageUrl, feed_image_source: 'manual_upload' }).eq('id', id);
