@@ -73,7 +73,7 @@ export async function regenerateAdminFeedImage(id: string) {
   if (!z.uuid().safeParse(id).success) return { error: 'Evento inválido.' };
   try {
     const { client } = await requireAdmin();
-    const { data: event, error: readError } = await client.from('events').select('id,slug,name,city,state,venue,event_category,description,feed_image_url,event_distances(label)').eq('id', id).maybeSingle();
+    const { data: event, error: readError } = await client.from('events').select('id,slug,name,city,state,venue,event_category,description,start_date,feed_image_url,event_distances(label)').eq('id', id).maybeSingle();
     if (readError || !event) return { error: 'Evento não encontrado.' };
     const generated = await new OpenAIFeedImageGenerator().generate(event);
     const path = `${id}/feed-${Date.now()}.webp`;
