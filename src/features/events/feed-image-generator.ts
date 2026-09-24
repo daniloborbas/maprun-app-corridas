@@ -2,16 +2,29 @@ import OpenAI from 'openai';
 import sharp from 'sharp';
 import type { RaceEvent } from './types';
 
-export type FeedImageContext = Pick<RaceEvent, 'name' | 'city' | 'state' | 'venue' | 'event_category' | 'description' | 'start_date'> & { distances?: Array<{ label?: string | null }> | null };
+export type FeedImageContext = Omit<Pick<RaceEvent, 'name' | 'city' | 'state' | 'venue' | 'event_category' | 'description' | 'start_date'>, 'event_category'> & { event_category?: RaceEvent['event_category'] | null; distances?: Array<{ label?: string | null }> | null };
 
 export function classifyFeedImageMode(event: FeedImageContext): 'road' | 'trail' | 'night-road' | 'walk' | 'kids' | 'unknown' {
-  const structured = String(event.event_category || '').toLowerCase();
-  const text = `${event.name || ''} ${event.description || ''} ${(event.distances || []).map((d) => d.label || '').join(' ')}`.toLowerCase();
-  if (/trail|trilha|montanha/.test(structured) || /trail|trilha|corrida de montanha/.test(text)) return 'trail';
-  if (/infantil|kids/.test(structured) || /kids|infantil|corrida infantil/.test(text)) return 'kids';
-  if (/night|noturna/.test(structured) || /night run|corrida noturna/.test(text)) return 'night-road';
-  if (/caminhada/.test(structured) && !/corrida|run|maratona/.test(structured)) return 'walk';
-  if (/rua|road|maratona|run/.test(structured) || /corrida|run|maratona/.test(text)) return 'road';
+  const structured = String(event.event_category || '').trim().toLowerCase();
+  if (structured) {
+    if (structured === 'trail') return 'trail';
+    if (structured === 'kids') return 'kids';
+    if (structured === 'night') return 'night-road';
+    if (structured === 'rua') return 'road';
+    if (structured === 'walk' || structured === 'caminhada') return 'walk';
+    return 'unknown';
+  }
+  const name = String(event.name || '').toLowerCase();
+  if (/trail|trilha|corrida de montanha|corrida em montanha/.test(name)) return 'trail';
+  if (/night run|corrida noturna/.test(name)) return 'night-road';
+  if (/kids|infantil|corrida infantil/.test(name)) return 'kids';
+  if (/caminhada|walking/.test(name)) return 'walk';
+  const description = String(event.description || '').toLowerCase();
+  if (/corrida de trilha|corrida em trilha|corrida de montanha|trail race/.test(description)) return 'trail';
+  if (/corrida noturna|night run/.test(description)) return 'night-road';
+  if (/corrida infantil|evento infantil/.test(description)) return 'kids';
+  if (/caminhada organizada|evento de caminhada/.test(description)) return 'walk';
+  if (/corrida de rua|prova de rua|road race|pista asfaltada/.test(description)) return 'road';
   return 'unknown';
 }
 

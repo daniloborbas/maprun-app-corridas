@@ -25,7 +25,26 @@ describe('feed image prompt', () => {
 
   it('allows kids only when the event data explicitly contains kids', () => {
     const prompt = buildFeedImagePrompt({ name: 'Corrida Santa Rita', city: 'Boa Esperança', state: 'MG', event_category: 'rua', venue: '', description: '', start_date: '', distances: [{ label: 'Kids' }] });
-    expect(classifyFeedImageMode({ name: 'Corrida Santa Rita', city: '', state: '', event_category: 'rua', venue: '', description: '', start_date: '', distances: [{ label: 'Kids' }] })).toBe('kids');
-    expect(prompt).toContain('adults as the primary runners');
+    expect(classifyFeedImageMode({ name: 'Corrida Santa Rita', city: '', state: '', event_category: 'rua', venue: '', description: '', start_date: '', distances: [{ label: 'Kids' }] })).toBe('road');
+    expect(prompt).toContain('paved roads');
+  });
+
+  it('does not let legacy trail wording override a structured road category', () => {
+    expect(classifyFeedImageMode({ name: 'Santa Rita', city: '', state: '', event_category: 'rua', venue: '', description: 'O texto antigo menciona trail running.', start_date: '' })).toBe('road');
+  });
+
+  it.each([
+    ['trail', 'trail'], ['kids', 'kids'], ['night', 'night-road'], ['rua', 'road'],
+  ] as const)('maps structured category %s before free text', (category, expected) => {
+    expect(classifyFeedImageMode({ name: 'Corrida Kids Trail', city: '', state: '', event_category: category, venue: '', description: 'trail running', start_date: '' })).toBe(expected);
+  });
+
+  it('keeps a secondary walk or kids distance as road', () => {
+    expect(classifyFeedImageMode({ name: 'Corrida Urbana', city: '', state: '', event_category: 'rua', venue: '', description: '', start_date: '', distances: [{ label: 'Caminhada' }, { label: 'Kids' }] })).toBe('road');
+  });
+
+  it('uses strong name evidence only when category is absent', () => {
+    expect(classifyFeedImageMode({ name: 'Trail da Serra', city: '', state: '', event_category: null, venue: '', description: '', start_date: '' })).toBe('trail');
+    expect(classifyFeedImageMode({ name: 'Corrida', city: '', state: '', event_category: null, venue: '', description: 'Uma ocorrência isolada de trail no texto.', start_date: '' })).toBe('unknown');
   });
 });
