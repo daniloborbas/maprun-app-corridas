@@ -38,6 +38,7 @@ export const eventSchema = z
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     short_description: z.string().max(240).default(''),
     description: z.string().max(10000),
+    description_source: z.enum(['manual', 'editorial_generated', 'imported', 'unknown']).default('unknown'),
     start_date: z.iso.datetime({ offset: true }),
     end_date: z.iso.datetime({ offset: true }).nullable().optional(),
     city: z.string().min(2).max(100),

@@ -66,6 +66,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       slug: text('slug') || slugify(text('name')),
       short_description: text('short_description'),
       description: text('description'),
+      description_source: text('description_source') || 'unknown',
       start_date: `${text('start_date')}:00-03:00`,
       end_date: text('end_date') ? `${text('end_date')}:00-03:00` : null,
       city: text('city'),
@@ -144,6 +145,8 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     const full = form.elements.namedItem('description') as HTMLTextAreaElement | null;
     if (short) short.value = generated.shortDescription;
     if (full) full.value = generated.description;
+    const source = form.elements.namedItem('description_source') as HTMLInputElement | null;
+    if (source) source.value = 'editorial_generated';
     setMessage('Descrições geradas para revisão.');
   }
   return (
@@ -291,7 +294,9 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
         </label>
         <label className="wide">
           Descrição completa
-          <textarea name="description" defaultValue={event?.description} />
+          <small className="text-muted">Origem: {{ manual: 'Manual', editorial_generated: 'Gerada', imported: 'Importada', unknown: 'Desconhecida' }[event?.description_source || 'unknown']}</small>
+          <input type="hidden" name="description_source" defaultValue={event?.description_source || 'unknown'} />
+          <textarea name="description" defaultValue={event?.description} onChange={(e) => { const source = e.currentTarget.form?.elements.namedItem('description_source') as HTMLInputElement | null; if (source && source.value !== 'editorial_generated') source.value = 'manual'; }} />
           <small>Exibida na página completa da corrida.</small>
         </label>
         <div className="wide">

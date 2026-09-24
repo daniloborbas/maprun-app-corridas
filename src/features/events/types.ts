@@ -14,6 +14,7 @@ export interface RaceEvent {
   name: string;
   short_description: string;
   description: string;
+  description_source?: 'manual' | 'editorial_generated' | 'imported' | 'unknown';
   start_date: string;
   end_date?: string | null;
   city: string;
