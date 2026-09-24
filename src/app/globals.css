@@ -2691,6 +2691,32 @@ blockquote span {
   background: var(--pale);
   margin-top: 6px;
 }
+.image-control-card-actions,
+.image-actions-menu {
+  display: grid;
+  gap: 8px;
+}
+.image-actions-menu {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--pale);
+}
+.image-actions-menu label {
+  display: grid;
+  gap: 5px;
+}
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
 .feed-image-admin,
 .fallback-library {
   display: grid;

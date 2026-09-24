@@ -1,6 +1,6 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Plus, Trash2 } from 'lucide-react';
@@ -49,6 +49,9 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
   const [registrationUrl, setRegistrationUrl] = useState(event?.registration_url || '');
   const [fallbackImageKey, setFallbackImageKey] = useState(event?.fallback_image_key || null);
   const [feedImageError, setFeedImageError] = useState(false);
+  const [officialImageOpen, setOfficialImageOpen] = useState(false);
+  const [feedImageOpen, setFeedImageOpen] = useState(false);
+  const feedFileRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     setFeedImageError(false);
   }, [event?.feed_image_url]);
@@ -277,19 +280,29 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
           {resolveRegistrationDestination({ registration_url: registrationUrl, official_url: officialUrl }) && <a href={resolveRegistrationDestination({ registration_url: registrationUrl, official_url: officialUrl }) || undefined} target="_blank" rel="noopener noreferrer" className="text-button">Testar botão Inscrever-se ↗</a>}
         </div>
         {input('regulation_url', 'Regulamento (HTTPS)', event?.regulation_url, 'url')}
-        {field('cover_image_url', 'URL da arte oficial', event?.cover_image_url)}
-        <div className="wide official-art-preview">
+        <div className="wide official-art-preview image-control-card">
           <strong>Arte oficial da corrida</strong>
           <small>Exibida na página de detalhes da corrida.</small>
           {event?.cover_image_url ? <img src={event.cover_image_url} alt="Prévia da arte oficial da corrida" /> : <small>Nenhuma arte oficial definida.</small>}
+          <small>Origem: {event?.cover_image_source === 'official' ? 'URL externa' : event?.cover_image_url ? 'URL externa' : 'Nenhuma'}</small>
+          {!officialImageOpen && <input type="hidden" name="cover_image_url" value={event?.cover_image_url || ''} readOnly />}
+          <button type="button" className="text-button image-change-button" onClick={() => setOfficialImageOpen((open) => !open)}>Mudar imagem {officialImageOpen ? '▴' : '▾'}</button>
+          {officialImageOpen && <div className="image-actions-menu">
+            <button type="button" className="text-button" onClick={() => setMessage('O upload da arte oficial será disponibilizado neste fluxo.')}>Enviar imagem</button>
+            <label>URL da arte oficial<input name="cover_image_url" type="url" defaultValue={event?.cover_image_url} placeholder="https://..." /></label>
+          </div>}
         </div>
         <div className="wide feed-image-admin">
           <strong>Imagem do feed</strong>
           {event?.feed_image_url && !feedImageError ? <Image src={event.feed_image_url} alt="Prévia da imagem do feed" width={160} height={200} onError={() => setFeedImageError(true)} style={{ display: 'block', objectFit: 'cover', borderRadius: 12, margin: '8px 0' }} /> : <small>{event?.feed_image_url ? 'Não foi possível carregar a imagem do feed.' : 'Nenhuma imagem de feed gerada ainda.'}</small>}
           <small>Origem: {event?.feed_image_source === 'manual_upload' ? 'Imagem enviada manualmente' : event?.feed_image_source === 'ai_generated' ? 'Gerada por IA' : event?.feed_image_source === 'legacy' ? 'Legada' : 'Nenhuma'}</small>
-          {event?.id && <div>
-            <button type="button" className="text-button" onClick={regenerateFeedImage} disabled={busy}>Gerar nova com IA</button>
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.currentTarget.files?.[0]; if (file) void uploadFeedImage(file); }} disabled={busy} />
+          {event?.id && <div className="image-control-card-actions">
+            <button type="button" className="text-button image-change-button" onClick={() => setFeedImageOpen((open) => !open)} disabled={busy}>Mudar imagem {feedImageOpen ? '▴' : '▾'}</button>
+            {feedImageOpen && <div className="image-actions-menu">
+              <button type="button" className="text-button" onClick={regenerateFeedImage} disabled={busy}>{busy ? 'Gerando nova imagem…' : 'Gerar nova com IA'}</button>
+              <button type="button" className="text-button" onClick={() => feedFileRef.current?.click()} disabled={busy}>Enviar imagem</button>
+              <input ref={feedFileRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.currentTarget.files?.[0]; if (file) void uploadFeedImage(file); }} disabled={busy} />
+            </div>}
           </div>}
         </div>
         <details className="wide fallback-library">
