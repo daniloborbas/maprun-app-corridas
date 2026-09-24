@@ -32,15 +32,30 @@ async function discover(sources: DiscoverySource[], client: ReturnType<typeof ad
   let candidatesNew = 0;
   let candidatesExisting = 0;
   const errors: { sourceId: string; source: string; error: string }[] = [];
+  const sourceResults: {
+    sourceId: string;
+    sourceName: string;
+    urlsFound: number;
+    candidatesNew: number;
+    candidatesExisting: number;
+    candidatesPersisted: number;
+    durationMs: number;
+    success: boolean;
+    error?: string;
+  }[] = [];
   for (const source of sources) {
+    const sourceStarted = Date.now();
     try {
       const result = await discoverAndPersistFromSource(source, {}, client);
       urlsFound += result.urlsFound;
       candidatesNew += result.newCandidates;
       candidatesExisting += result.existingCandidates;
       await recordDiscoverySourceSuccess(source, new Date(), client);
+      sourceResults.push({ sourceId: source.id, sourceName: source.name, urlsFound: result.urlsFound, candidatesNew: result.newCandidates, candidatesExisting: result.existingCandidates, candidatesPersisted: result.candidatesPersisted, durationMs: Date.now() - sourceStarted, success: true });
     } catch (error) {
-      errors.push({ sourceId: source.id, source: source.name, error: safeError(error) });
+      const message = safeError(error);
+      errors.push({ sourceId: source.id, source: source.name, error: message });
+      sourceResults.push({ sourceId: source.id, sourceName: source.name, urlsFound: 0, candidatesNew: 0, candidatesExisting: 0, candidatesPersisted: 0, durationMs: Date.now() - sourceStarted, success: false, error: message });
       try { await recordDiscoverySourceFailure(source, new Date(), client); } catch { /* preserve the original source error */ }
     }
   }
@@ -54,6 +69,7 @@ async function discover(sources: DiscoverySource[], client: ReturnType<typeof ad
     candidatesPersisted: candidatesNew + candidatesExisting,
     durationMs: Date.now() - started,
     errors,
+    sourceResults,
   };
 }
 

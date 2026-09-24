@@ -21,7 +21,10 @@ export async function upsertDiscoveredCandidates(source: DiscoverySource, urls: 
       p_discovered_at: item.discoveredAt, p_metadata: {},
     });
     if (error) throw new Error('Não foi possível persistir candidatos descobertos.');
-    if (data?.inserted) newCandidates += 1; else existingCandidates += 1;
+    const inserted = data && typeof data === 'object' && !Array.isArray(data)
+      ? (data as { inserted?: unknown }).inserted
+      : undefined;
+    if (inserted === true || inserted === 'true') newCandidates += 1; else existingCandidates += 1;
   }
   return { urlsFound: urls.length, newCandidates, existingCandidates, candidatesPersisted: newCandidates + existingCandidates };
 }

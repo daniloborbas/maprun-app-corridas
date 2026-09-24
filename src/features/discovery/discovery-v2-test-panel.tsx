@@ -14,6 +14,7 @@ type DiscoveryResponse = {
     candidatesPersisted: number;
     durationMs: number;
     errors: { source: string; error: string }[];
+    sourceResults: { sourceId: string; sourceName: string; urlsFound: number; candidatesNew: number; candidatesExisting: number; candidatesPersisted: number; durationMs: number; success: boolean; error?: string }[];
   };
   candidates?: { url: string; source: string; titleHint: string | null; discoveryMethod: string }[];
   error?: string;
@@ -44,6 +45,7 @@ export function DiscoveryV2TestPanel() {
     {state === 'success' && summary && <div role="status">
       <p>Sucesso · {summary.sourcesProcessed} fontes · {summary.urlsFound} URLs · {summary.candidatesNew} novas · {summary.candidatesExisting} existentes · {summary.candidatesPersisted} persistidas · {summary.durationMs} ms</p>
       {summary.errors.length > 0 && <ul>{summary.errors.map((error) => <li key={error.source}>{error.source}: {error.error}</li>)}</ul>}
+      {summary.sourceResults.length > 0 && <ul>{summary.sourceResults.map((source) => <li key={source.sourceId}>{source.sourceName}: {source.success ? `${source.urlsFound} URLs, ${source.candidatesNew} novas, ${source.candidatesExisting} existentes` : `erro: ${source.error}`}</li>)}</ul>}
       {(result.candidates || []).length > 0 && <div className="table-scroll"><table className="admin-table"><thead><tr><th>URL</th><th>Fonte</th><th>Title hint</th><th>Método</th></tr></thead><tbody>{result.candidates?.map((candidate) => <tr key={`${candidate.source}-${candidate.url}`}><td><a href={candidate.url} target="_blank" rel="noopener noreferrer">{candidate.url}</a></td><td>{candidate.source}</td><td>{candidate.titleHint || '—'}</td><td>{candidate.discoveryMethod}</td></tr>)}</tbody></table></div>}
     </div>}
   </section>;

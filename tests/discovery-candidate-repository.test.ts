@@ -16,6 +16,13 @@ describe('discovery candidate repository', () => {
     expect(rpc).toHaveBeenCalledTimes(2);
   });
 
+  it('counts stringified inserted flags as new candidates', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { inserted: 'true' }, error: null });
+    const result = await upsertDiscoveredCandidates(source, [url], { rpc } as never);
+    expect(result.newCandidates).toBe(1);
+    expect(result.existingCandidates).toBe(0);
+  });
+
   it('uses the atomic claim and exposes state transitions', async () => {
     const row = { id: 'candidate-1', status: 'processing' };
     const rpc = vi.fn().mockResolvedValue({ data: [row], error: null });
