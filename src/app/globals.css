@@ -1031,18 +1031,19 @@ label,
 
 /* Keep official posters complete on mobile, using a blurred copy to fill the stage. */
 @media (max-width: 700px) {
-  .discovery-card { display: flex; flex-direction: column; min-height: 0; height: auto; max-height: none; padding: 0; background: #fff; color: var(--ink); }
+  .discovery-feed { gap: 20px; padding: 0 12px 20px; }
+  .discovery-card { display: flex; flex-direction: column; min-height: 0; height: auto; max-height: none; padding: 0; background: #fff; color: var(--ink); border: 1px solid #e3ebe5; border-radius: 18px; box-shadow: 0 8px 24px rgb(18 49 31 / 8%); overflow: hidden; }
   .discovery-card > .desktop-card-cover,
   .discovery-card > .cover-shade { display: none; }
-  .mobile-card-cover { position: relative; display: block; flex: 0 0 min(58svh, 560px); min-height: 330px; overflow: hidden; background: #18231d; }
+  .mobile-card-cover { position: relative; display: block; flex: 0 0 clamp(280px, 52svh, 460px); min-height: 280px; overflow: hidden; background: #26382d; }
   .mobile-card-cover-background, .mobile-card-cover-foreground { position: absolute; inset: 0; }
-  .mobile-card-cover-background { transform: scale(1.08); filter: blur(22px); }
+  .mobile-card-cover-background { transform: scale(1.04); filter: blur(10px); opacity: .62; }
   .mobile-card-image { position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; }
   .mobile-card-image-background { object-fit: cover !important; opacity: .78; }
-  .mobile-card-cover-overlay { position: absolute; inset: 0; background: #07120c4d; }
+  .mobile-card-cover-overlay { position: absolute; inset: 0; background: rgb(7 18 12 / 22%); }
   .mobile-card-image-foreground { object-fit: contain !important; }
   .discovery-card > .card-top { display: none; }
-  .discovery-card > .card-content { position: static; order: 2; padding: 18px 18px 12px; background: #fff; color: var(--ink); }
+  .discovery-card > .card-content { position: static; order: 2; padding: 18px 18px 14px; background: #fff; color: var(--ink); }
   .discovery-card .category-caption { color: var(--green-dark); }
   .discovery-card .card-content h2 { max-width: none; margin: 5px 0 10px; color: var(--ink); font-size: 24px; line-height: 1.12; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .discovery-card .card-content p { margin: 6px 0; color: var(--ink); font-size: 13px; }
@@ -2690,4 +2691,12 @@ blockquote span {
   .discovery-card > .event-actions button > span { width: 38px; height: 38px; }
   .discovery-card > .event-actions small { color: var(--muted); }
   .discovery-card > .card-bottom { display: none; }
+}
+@media (max-width: 700px) {
+  .discovery-feed { gap: 20px; padding: 0 12px 20px; }
+  .discovery-card { border: 1px solid #e3ebe5; border-radius: 18px; box-shadow: 0 8px 24px rgb(18 49 31 / 8%); overflow: hidden; }
+  .mobile-card-cover { flex-basis: clamp(280px, 52svh, 460px); min-height: 280px; background: #26382d; }
+  .mobile-card-cover-background { transform: scale(1.04); filter: blur(10px); opacity: .62; }
+  .mobile-card-cover-overlay { background: rgb(7 18 12 / 22%); }
+  .discovery-card > .card-content { padding: 18px 18px 14px; }
 }
