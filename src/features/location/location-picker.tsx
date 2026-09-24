@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MapPin, LocateFixed, ChevronDown } from 'lucide-react';
 import { useApp } from '@/components/app-provider';
 import { trackAnalyticsEvent } from '@/features/analytics/client';
@@ -25,6 +25,14 @@ export function LocationPicker() {
   const { location, setLocation, setRadius, notify } = useApp();
   const [open, setOpen] = useState(false),
     [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
   function locate() {
     if (!navigator.geolocation) {
       notify('Seu navegador não oferece localização. Escolha uma cidade.');
@@ -60,8 +68,13 @@ export function LocationPicker() {
         <ChevronDown size={15} />
       </button>
       {open && (
-        <div className="location-popover">
-          <strong>De onde você vai partir?</strong>
+        <>
+          <button className="location-backdrop" aria-label="Fechar seletor de localização" onClick={() => setOpen(false)} />
+          <div className="location-popover" role="dialog" aria-modal="true" aria-label="Sua localização" onClick={(event) => event.stopPropagation()}>
+          <div className="location-dialog-header">
+            <strong>Sua localização</strong>
+            <button className="location-dialog-close" aria-label="Fechar" onClick={() => setOpen(false)}>×</button>
+          </div>
           <p>
             Sua localização ajuda a encontrar provas próximas. Não acompanhamos seus deslocamentos.
           </p>
@@ -105,7 +118,8 @@ export function LocationPicker() {
           >
             Explorar sem localização
           </button>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
