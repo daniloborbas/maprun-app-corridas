@@ -1,5 +1,6 @@
 import { requireAdmin } from '@/lib/supabase/server';
 import { DiscoveryQueue } from '@/features/discovery/queue';
+import { DiscoveryV2TestPanel } from '@/features/discovery/discovery-v2-test-panel';
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 export default async function DiscoveriesPage({ searchParams }: { searchParams: SearchParams }) {
   let access; try { access = await requireAdmin(); } catch { return null; }
@@ -21,7 +22,7 @@ export default async function DiscoveriesPage({ searchParams }: { searchParams: 
     access.client.from('discovery_sources').select('id,name').order('name'),
   ]);
   const last = runs?.[0];
-  return <><div className="admin-note">Última busca automática: {last?.finished_at ? new Date(last.finished_at).toLocaleString('pt-BR') : 'ainda não executada'} · Status: {last?.status ?? '—'} · Próxima execução: diariamente às 05:00 (Brasília) · Último resultado: {last?.new_count ?? 0} novas corridas · {last?.error_count ?? 0} erros</div><DiscoveryQueue initial={(data || []) as Record<string, unknown>[]} sources={(sources || []) as Record<string, unknown>[]} count={count ?? 0} filters={{ status, quality, source, priority, q }} /></>;
+  return <><div className="admin-note">Última busca automática: {last?.finished_at ? new Date(last.finished_at).toLocaleString('pt-BR') : 'ainda não executada'} · Status: {last?.status ?? '—'} · Próxima execução: diariamente às 05:00 (Brasília) · Último resultado: {last?.new_count ?? 0} novas corridas · {last?.error_count ?? 0} erros</div><DiscoveryV2TestPanel /><DiscoveryQueue initial={(data || []) as Record<string, unknown>[]} sources={(sources || []) as Record<string, unknown>[]} count={count ?? 0} filters={{ status, quality, source, priority, q }} /></>;
 }
 
 

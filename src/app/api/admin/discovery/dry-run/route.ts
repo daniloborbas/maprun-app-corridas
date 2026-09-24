@@ -57,6 +57,21 @@ async function discover(sources: DiscoverySource[], client: ReturnType<typeof ad
   };
 }
 
+async function recentCandidateSample(client: ReturnType<typeof adminDb>, since: Date) {
+  const { data } = await client
+    .from('discovery_candidates')
+    .select('url,title_hint,discovery_method,source_id,discovery_sources(name)')
+    .gte('created_at', since.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(20);
+  return (data || []).map((candidate) => ({
+    url: candidate.url,
+    source: (candidate.discovery_sources as { name?: string } | null)?.name || candidate.source_id,
+    titleHint: candidate.title_hint || null,
+    discoveryMethod: candidate.discovery_method,
+  }));
+}
+
 export async function POST(request: Request) {
   try { await requireAdmin(); } catch { return NextResponse.json({ error: 'Acesso restrito.' }, { status: 403 }); }
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
@@ -69,13 +84,15 @@ export async function POST(request: Request) {
   try { client = adminDb(); } catch { return NextResponse.json({ error: 'Banco indisponível.' }, { status: 503 }); }
   try {
     let discovery;
+    let discoveryStartedAt: Date | null = null;
     if (input.action === 'discover' || input.action === 'discover-and-dry-run') {
+      discoveryStartedAt = new Date();
       let sources = await listSourcesReadyForCrawl(new Date(), client);
       if (input.sourceIds?.length) sources = sources.filter((source) => input.sourceIds!.includes(source.id));
       sources = sources.slice(0, input.sourceLimit ?? 5);
       discovery = await discover(sources, client);
     }
-    if (input.action === 'discover') return NextResponse.json({ discovery });
+    if (input.action === 'discover') return NextResponse.json({ discovery, candidates: await recentCandidateSample(client, discoveryStartedAt || new Date()) });
     const report = await runDiscoveryDryRun({
       client,
       candidateIds: input.candidateIds,
