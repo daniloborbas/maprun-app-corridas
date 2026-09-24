@@ -9,8 +9,12 @@ import { generateEventEditorialContent } from '@/features/events/editorial';
 import { classifyRegistrationUrl, resolveRegistrationDestination } from '@/features/events/registration';
 import { EVENT_FALLBACK_IMAGES } from '@/features/events/fallback-images';
 export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
-const toLocal = (v?: string | null) =>
-  v ? new Date(new Date(v).getTime() - 3 * 3600000).toISOString().slice(0, 16) : '';
+const toLocal = (v?: string | null) => {
+  if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T00:00`;
+  if (/^\d{4}-\d{2}-\d{2}T00:00:00(?:\.000)?Z$/.test(v)) return `${v.slice(0, 10)}T00:00`;
+  return new Date(new Date(v).getTime() - 3 * 3600000).toISOString().slice(0, 16);
+};
 export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manual', disableSave = false }: { event?: RaceEvent; forceDraft?: boolean | 'finished'; sourceMethod?: string; disableSave?: boolean }) {
   const router = useRouter();
   const [distances, setDistances] = useState<EventDistance[]>(
@@ -407,3 +411,4 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     </>
   );
 }
+
