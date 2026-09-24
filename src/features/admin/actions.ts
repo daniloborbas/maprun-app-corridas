@@ -4,6 +4,7 @@ import { eventSchema } from '@/features/events/validation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { OpenAIFeedImageGenerator } from '@/features/events/feed-image-generator';
+import sharp from 'sharp';
 export async function saveAdminEvent(input: unknown, attemptId?: string): Promise<{ id?: string; error?: string; diagnosticId?: string }> {
   const diagnosticId = attemptId && /^[a-z0-9]{8}$/i.test(attemptId) ? attemptId : crypto.randomUUID().slice(0, 8);
   console.error('[MapRun event-save:start]', { diagnosticId });
@@ -81,7 +82,7 @@ export async function regenerateAdminFeedImage(id: string) {
     if (upload.error) throw new Error('storage_upload_failed');
     const { data: publicData } = client.storage.from('event-feed').getPublicUrl(path);
     const feedImageUrl = publicData.publicUrl;
-    const { error } = await client.from('events').update({ feed_image_url: feedImageUrl }).eq('id', id);
+    const { error } = await client.from('events').update({ feed_image_url: feedImageUrl, feed_image_source: 'ai_generated' }).eq('id', id);
     if (error) return { error: 'Não foi possível gerar a imagem.' };
     revalidatePath('/', 'layout');
     return { success: true, feedImageUrl };
@@ -90,4 +91,30 @@ export async function regenerateAdminFeedImage(id: string) {
 
 export async function generatePublishedFeedImage(id: string) {
   return regenerateAdminFeedImage(id);
+}
+
+export async function uploadAdminFeedImage(id: string, input: { dataUrl: string; mimeType: string }) {
+  if (!z.uuid().safeParse(id).success) return { error: 'Evento inválido.' };
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(input.mimeType)) return { error: 'Formato inválido. Use JPEG, PNG ou WebP.' };
+  if (!input.dataUrl.startsWith('data:image/')) return { error: 'Arquivo inválido.' };
+  try {
+    const { client } = await requireAdmin();
+    const match = input.dataUrl.match(/^data:[^;]+;base64,(.+)$/);
+    if (!match) return { error: 'Arquivo inválido.' };
+    const source = Buffer.from(match[1], 'base64');
+    if (source.byteLength > 8 * 1024 * 1024) return { error: 'A imagem deve ter no máximo 8 MB.' };
+    const bytes = await sharp(source).resize(800, 1000, { fit: 'cover', position: 'centre' }).webp({ quality: 85 }).toBuffer();
+    const path = `${id}/manual-${Date.now()}.webp`;
+    const upload = await client.storage.from('event-feed').upload(path, new Blob([new Uint8Array(bytes)], { type: 'image/webp' }), { contentType: 'image/webp', cacheControl: '31536000', upsert: true });
+    if (upload.error) throw new Error('storage_upload_failed');
+    const { data: publicData } = client.storage.from('event-feed').getPublicUrl(path);
+    const feedImageUrl = publicData.publicUrl;
+    const { error } = await client.from('events').update({ feed_image_url: feedImageUrl, feed_image_source: 'manual_upload' }).eq('id', id);
+    if (error) throw new Error('event_update_failed');
+    revalidatePath('/', 'layout');
+    return { success: true, feedImageUrl };
+  } catch (error) {
+    console.error('[MapRun manual-feed-image]', { type: error instanceof Error ? error.message : 'unknown' });
+    return { error: 'Não foi possível enviar a imagem agora.' };
+  }
 }

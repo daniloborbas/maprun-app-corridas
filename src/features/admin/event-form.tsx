@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Plus, Trash2 } from 'lucide-react';
-import { saveAdminEvent, deleteAdminEvent, regenerateAdminFeedImage, generatePublishedFeedImage } from './actions';
+import { saveAdminEvent, deleteAdminEvent, regenerateAdminFeedImage, generatePublishedFeedImage, uploadAdminFeedImage } from './actions';
 import type { RaceEvent, EventDistance } from '@/features/events/types';
 import { generateEventEditorialContent } from '@/features/events/editorial';
 import { classifyRegistrationUrl, resolveRegistrationDestination } from '@/features/events/registration';
@@ -31,6 +31,18 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     setBusy(false);
     if (!result.error) router.refresh();
   }
+  async function uploadFeedImage(file: File) {
+    if (!event?.id) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setMessage('Formato inválido. Use JPEG, PNG ou WebP.'); return; }
+    if (file.size > 8 * 1024 * 1024) { setMessage('A imagem deve ter no máximo 8 MB.'); return; }
+    setBusy(true); setMessage('Processando imagem…');
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); });
+      const result = await uploadAdminFeedImage(event.id, { dataUrl, mimeType: file.type });
+      setMessage(result.error || 'Imagem manual enviada.');
+      if (!result.error) router.refresh();
+    } finally { setBusy(false); }
+  }
   const [existingSources] = useState(() => event?.event_sources?.map((source) => ({ source_name: source.source_name, source_url: source.source_url, source_method: source.source_method || source.import_method || 'manual' })) || []);
   const [officialUrl, setOfficialUrl] = useState(event?.official_url || '');
   const [registrationUrl, setRegistrationUrl] = useState(event?.registration_url || '');
@@ -41,7 +53,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     [geocoding, setGeocoding] = useState(false),
     [deleteConfirm, setDeleteConfirm] = useState(false);
   const field = (name: string, label: string, value = '', type = 'text', required = false) => (
-    <label>
+          <label>
       {label}
       <input name={name} type={type} defaultValue={value} required={required} />
     </label>
@@ -77,6 +89,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       description: text('description'),
       description_source: text('description_source') || 'unknown',
       feed_image_url: event?.feed_image_url || null,
+      feed_image_source: event?.feed_image_source || 'none',
       start_date: `${text('start_date')}:00-03:00`,
       end_date: text('end_date') ? `${text('end_date')}:00-03:00` : null,
       city: text('city'),
@@ -268,6 +281,15 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
             <option value="generated">Gerada</option>
           </select>
         </label>
+        <div className="wide feed-image-admin">
+          <strong>Imagem do feed</strong>
+          {event?.feed_image_url ? <Image src={event.feed_image_url} alt="Prévia da imagem do feed" width={160} height={200} style={{ display: 'block', objectFit: 'cover', borderRadius: 12, margin: '8px 0' }} /> : <small>Nenhuma imagem de feed definida.</small>}
+          <small>Origem: {event?.feed_image_source === 'manual_upload' ? 'Imagem enviada manualmente' : event?.feed_image_source === 'ai_generated' ? 'Gerada por IA' : event?.feed_image_source === 'legacy' ? 'Legada' : 'Nenhuma'}</small>
+          {event?.id && <div>
+            <button type="button" className="text-button" onClick={regenerateFeedImage} disabled={busy}>Gerar nova com IA</button>
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.currentTarget.files?.[0]; if (file) void uploadFeedImage(file); }} disabled={busy} />
+          </div>}
+        </div>
         <div className="wide fallback-library">
           <strong>Biblioteca de capas fallback</strong>
           <small>Escolha uma capa manual ou volte para a seleção automática contextual.</small>
