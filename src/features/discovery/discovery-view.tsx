@@ -12,6 +12,7 @@ import { EventCover } from '@/components/event-cover';
 import { EventActions } from '@/components/event-actions';
 import { formatDate, formatMoney } from '@/features/events/discovery';
 import { EmptyState } from '@/components/empty-state';
+import { getRegistrationStatusPresentation } from '@/features/events/registration-status';
 export function DiscoveryView({ events }: { events: RaceEvent[] }) {
   const { location } = useApp();
   const [category, setCategory] = useState(''),
@@ -153,6 +154,7 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
                   {event.distance_km !== undefined && <span className="desktop-distance-overlay">{Math.round(event.distance_km)} km de você</span>}
                   <div className="desktop-race-card-content">
                   <h2>{event.name}</h2>
+                  {getRegistrationStatusPresentation(event.registration_status).disabled && <span className={`registration-status-card ${getRegistrationStatusPresentation(event.registration_status).status}`}>{getRegistrationStatusPresentation(event.registration_status).shortLabel}</span>}
                   <p><MapPin size={14} />{event.city} · {event.state}</p>
                   <p><CalendarDays size={14} />{formatDate(event.start_date)}</p>
                   <div className="desktop-distance-badges">{event.event_distances.slice(0, 4).map((distance) => <span key={distance.label}>{distance.label}</span>)}{event.event_distances.length > 4 && <span>+{event.event_distances.length - 4}</span>}</div>

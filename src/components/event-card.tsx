@@ -8,6 +8,7 @@ import { EventCover } from './event-cover';
 import { EventActions } from './event-actions';
 import { trackAnalyticsEvent } from '@/features/analytics/client';
 import { sanitizeEventText } from '@/features/events/text';
+import { getRegistrationStatusPresentation } from '@/features/events/registration-status';
 export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: number }) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -56,7 +57,7 @@ export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: 
                 : 'CORRIDA DE RUA'}
         </span>
         <h2>{event.name}</h2>
-        {event.registration_status && event.registration_status !== 'open' && <span className={`registration-status-card ${event.registration_status === 'sold_out' ? 'sold-out' : 'closed'}`}>{event.registration_status === 'sold_out' ? 'Esgotado' : 'Inscrições encerradas'}</span>}
+        {getRegistrationStatusPresentation(event.registration_status).disabled && <span className={`registration-status-card ${getRegistrationStatusPresentation(event.registration_status).status}`}>{getRegistrationStatusPresentation(event.registration_status).shortLabel}</span>}
         <p>
           <MapPin size={16} />
           {event.city} · {event.state}
@@ -123,6 +124,7 @@ export function EventListCard({ event, grid = false }: { event: RaceEvent; grid?
             {event.status === 'cancelled' ? 'Cancelada' : 'Encerrada'}
           </span>
         )}
+        {getRegistrationStatusPresentation(event.registration_status).disabled && <span className={`registration-status-card ${getRegistrationStatusPresentation(event.registration_status).status}`}>{getRegistrationStatusPresentation(event.registration_status).shortLabel}</span>}
       </div>
       <EventActions event={event} compact />
     </article>
