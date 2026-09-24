@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getRegistrationStatusPresentation, normalizeRegistrationStatus, registrationStatusLabel } from '@/features/events/registration-status';
+import { eventSchema } from '@/features/events/validation';
+import { demoEvents } from '@/features/events/fixtures';
 
 describe('registration status', () => {
   it('defaults missing values to open', () => {
@@ -14,5 +16,11 @@ describe('registration status', () => {
     const presentation = getRegistrationStatusPresentation(status);
     expect(presentation.canRegister).toBe(status === 'open');
     expect(presentation.disabled).toBe(status !== 'open');
+  });
+  it('keeps the selected value in the validated admin payload', () => {
+    const base = { ...demoEvents[0], registration_status: 'sold_out' as const };
+    expect(eventSchema.parse(base).registration_status).toBe('sold_out');
+    expect(eventSchema.parse({ ...base, registration_status: 'closed' }).registration_status).toBe('closed');
+    expect(eventSchema.parse({ ...base, registration_status: undefined }).registration_status).toBe('open');
   });
 });
