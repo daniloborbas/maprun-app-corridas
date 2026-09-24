@@ -1,9 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { prioritizeEnrichmentCandidates } from '@/features/discovery/enrichment-priority';
+import { classifyGeographicPriority, prioritizeEnrichmentCandidates } from '@/features/discovery/enrichment-priority';
 
 const ids = (items: Array<{ id: string }>) => items.map((item) => item.id);
 
 describe('enrichment budget priority', () => {
+  it('classifies the geographic bands around Itajubá', () => {
+    expect(classifyGeographicPriority({ latitude: -22.4256, longitude: -45.4528 })).toBe('high');
+    expect(classifyGeographicPriority({ latitude: -23.8, longitude: -45.4 })).toBe('medium');
+    expect(classifyGeographicPriority({ latitude: -25.0, longitude: -49.0 })).toBe('low');
+    expect(classifyGeographicPriority({})).toBe('unknown');
+  });
+  it('orders geographic priority before trust and date tie-breakers', () => {
+    const result = prioritizeEnrichmentCandidates([
+      { id: 'low', latitude: -25, longitude: -49, trust_level: 'B' },
+      { id: 'unknown', trust_level: 'C' },
+      { id: 'high-c', latitude: -22.4256, longitude: -45.4528, trust_level: 'C' },
+      { id: 'high-b', latitude: -22.4256, longitude: -45.4528, trust_level: 'B' },
+    ], [], 4);
+    expect(ids(result)).toEqual(['high-b', 'high-c', 'unknown', 'low']);
+  });
+  it('uses unknown candidates before low candidates without exceeding budget', () => {
+    const result = prioritizeEnrichmentCandidates([
+      { id: 'unknown' },
+      { id: 'low', latitude: -25, longitude: -49 },
+    ], [], 1);
+    expect(ids(result)).toEqual(['unknown']);
+  });
   it('uses remaining budget for old candidates after all new candidates', () => {
     expect(ids(prioritizeEnrichmentCandidates([{ id: 'n1' }, { id: 'n2' }], Array.from({ length: 20 }, (_, i) => ({ id: `o${i}` })), 25))).toEqual(['n1', 'n2', ...Array.from({ length: 20 }, (_, i) => `o${i}`)]);
   });

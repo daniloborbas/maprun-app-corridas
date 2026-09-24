@@ -9,6 +9,7 @@ import { findBestEventDeduplication } from './deduplication';
 import { calculateDiscoveryConfidence } from './confidence';
 import { observeAiFallback, sanitizeDiscoveryError, type DiscoveryAiMetrics } from './observability';
 import { buildDiscoveryRunUpdate } from './run-update';
+import { sortByGeographicPriority } from './enrichment-priority';
 export const providers = [tfsportsProvider, htmlCalendarProvider];
 export class DiscoveryAlreadyRunning extends Error {}
 const STALE_MS = 10 * 60_000;
@@ -38,6 +39,13 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   let aiBudget = Math.max(0, Number.parseInt(process.env.AI_EXTRACTION_MAX_PER_RUN || '5', 10) || 5);
   const aiOptions = () => ({ enabled: aiEnabled, allowCall: aiEnabled && aiBudget > 0 });
   let finished = false;
+  const { data: cachedLocations } = await client.from('geocoded_locations').select('city,state,latitude,longitude');
+  const locationCache = new Map((cachedLocations ?? []).map((item) => [`${String(item.city).toLowerCase()}|${String(item.state).toUpperCase()}`, item]));
+  const withCachedLocation = <T extends { city?: string|null; state?: string|null; latitude?: number|null; longitude?: number|null }>(candidate: T): T => {
+    if (candidate.latitude && candidate.longitude) return candidate;
+    const cached = candidate.city && candidate.state ? locationCache.get(`${candidate.city.toLowerCase()}|${candidate.state.toUpperCase()}`) : undefined;
+    return cached ? { ...candidate, latitude: Number(cached.latitude), longitude: Number(cached.longitude) } : candidate;
+  };
   const finish = async (fatal = false) => {
     if (finished) return;
     const status = failed===0 ? 'completed' : (newCandidates || discovered ? 'partial' : 'failed');
@@ -60,7 +68,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
       const provider = providers.find((item) => item.supports(source));
       if (!provider) { failed++; errors.push(`${source.name}: provider não suportado`); errorDetails.push(sanitizeDiscoveryError('source', 'provider_not_supported')); continue; }
       try {
-        const candidates = await provider.discoverEvents(source);
+        const candidates = sortByGeographicPriority((await provider.discoverEvents(source)).map((candidate, order) => ({ ...withCachedLocation(candidate), trust_level: source.trust_level ?? 'C', order })));
         discovered += candidates.length;
         for (const candidate of candidates) {
           if (candidate.event_date && Date.parse(candidate.event_date) < Date.now()) { pastIgnored++; continue; }
@@ -140,10 +148,10 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
       if (sourceError) { failed++; errors.push(`${source.name}: falha ao atualizar a fonte`); errorDetails.push(sanitizeDiscoveryError('source', 'update_failed')); }
     }
 
-    const { data: pendingRows, error: pendingError } = await client.from('discovered_events').select('id,source_id,source_url,name,raw_title,event_date,registration_url,status,quality_status,enriched_at').eq('status','pending').limit(5000);
+    const { data: pendingRows, error: pendingError } = await client.from('discovered_events').select('id,source_id,source_url,name,raw_title,event_date,registration_url,status,quality_status,enriched_at,city,state,latitude,longitude').eq('status','pending').limit(5000);
     if (pendingError) throw pendingError;
       const sourceById = new Map(sources.map((source) => [source.id, source]));
-      for (const row of pendingRows || []) {
+      for (const row of sortByGeographicPriority((pendingRows || []).map((row, order) => ({ ...withCachedLocation(row), trust_level: sourceById.get(row.source_id)?.trust_level ?? 'C', order })))) {
         const candidate = { ...row, status: 'pending' as const };
       if (candidate.event_date && Date.parse(candidate.event_date) < Date.now()) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored' }).eq('id', candidate.id); continue; }
       if (classifyDiscoveryCandidate(candidate) !== 'EVENT') { ignored++; await client.from('discovered_events').update({ status:'ignored' }).eq('id', candidate.id); }
@@ -179,6 +187,9 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   console.info('[MapRun discovery classification]', summary);
   return summary;
 }
+
+
+
 
 
 
