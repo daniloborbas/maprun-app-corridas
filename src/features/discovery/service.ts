@@ -7,7 +7,7 @@ import { classifyDiscoveryCandidate } from './classifier';
 import { enrichDiscoveredEvent } from './enrichment';
 import { findBestEventDeduplication } from './deduplication';
 import { calculateDiscoveryConfidence } from './confidence';
-import { observeAiFallback, sanitizeDiscoveryError, type DiscoveryAiMetrics } from './observability';
+import { observeAiFallback, recordDiscoveryError, sanitizeDiscoveryError, type DiscoveryAiMetrics, type DiscoveryErrorDetail } from './observability';
 import { buildDiscoveryRunUpdate } from './run-update';
 import { sortByGeographicPriority } from './enrichment-priority';
 export const providers = [tfsportsProvider, htmlCalendarProvider];
@@ -31,7 +31,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   const runId = run.id;
   const started = Date.now();
   const errors: string[] = [];
-  const errorDetails: Array<{ stage: string; type: string }> = [];
+  const errorDetails: DiscoveryErrorDetail[] = [];
   let discovered=0, newCandidates=0, known=0, duplicates=0, failed=0, ignored=0, pastIgnored=0, enriched=0, ready=0, incomplete=0, conflicts=0, enrichmentErrors=0;
   let enrichmentBudget = 25;
   const aiMetrics: DiscoveryAiMetrics = { aiFallbackNeeded: 0, aiCalls: 0, aiSuccesses: 0, aiFailures: 0, aiInputTokens: 0, aiOutputTokens: 0 };
@@ -64,9 +64,9 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
   };
   try {
     for (const source of sources.filter((item) => item.active)) {
-      if (Date.now() - started > MAX_RUN_MS) { failed++; errors.push('Execução interrompida por limite de tempo.'); errorDetails.push(sanitizeDiscoveryError('discovery', 'timeout')); break; }
+      if (Date.now() - started > MAX_RUN_MS) { failed++; errors.push('Execução interrompida por limite de tempo.'); recordDiscoveryError(errorDetails, sanitizeDiscoveryError('discovery', 'timeout')); break; }
       const provider = providers.find((item) => item.supports(source));
-      if (!provider) { failed++; errors.push(`${source.name}: provider não suportado`); errorDetails.push(sanitizeDiscoveryError('source', 'provider_not_supported')); continue; }
+      if (!provider) { failed++; errors.push(`${source.name}: provider não suportado`); recordDiscoveryError(errorDetails, sanitizeDiscoveryError('source_discovery', 'provider_not_supported', { source_id: source.id, source_name: source.name })); continue; }
       try {
         const candidates = sortByGeographicPriority((await provider.discoverEvents(source)).map((candidate, order) => ({ ...withCachedLocation(candidate), trust_level: source.trust_level ?? 'C', order })));
         discovered += candidates.length;
@@ -134,21 +134,29 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
           enrichedCandidate.confidence_score = finalConfidence.score;
           enrichedCandidate.confidence_reasons = finalConfidence.reasons;
           const { error: insertError } = await client.from('discovered_events').insert({ ...enrichedCandidate, quality_status });
-          if (insertError) throw insertError;
+          if (insertError) {
+            recordDiscoveryError(errorDetails, sanitizeDiscoveryError('candidate_persistence', 'database_error', {
+              operation: 'insert_discovered_event', source_id: source.id, source_name: source.name,
+              external_id: enrichedCandidate.external_id, source_url: enrichedCandidate.source_url,
+              db_code: insertError.code, message: insertError.message, details: insertError.details, hint: insertError.hint,
+            }));
+            errors.push(`${source.name}: persistência indisponível`);
+            continue;
+          }
           newCandidates++;
         }
       } catch (error) {
         failed++;
         const message = error instanceof Error ? error.message : 'falha desconhecida';
-        errorDetails.push(sanitizeDiscoveryError('source', error instanceof Error ? error.name || 'provider_error' : 'provider_error'));
+        recordDiscoveryError(errorDetails, sanitizeDiscoveryError('source_discovery', error instanceof Error ? error.name || 'provider_error' : 'provider_error', { source_id: source.id, source_name: source.name, message: message }));
         errors.push(`${source.name}: ${message}`);
         console.error('[MapRun discovery cron:error]', { runId, sourceId:source.id, message });
       }
       const { error: sourceError } = await client.from('discovery_sources').update({ last_checked_at:new Date().toISOString() }).eq('id',source.id);
-      if (sourceError) { failed++; errors.push(`${source.name}: falha ao atualizar a fonte`); errorDetails.push(sanitizeDiscoveryError('source', 'update_failed')); }
+      if (sourceError) { failed++; errors.push(`${source.name}: falha ao atualizar a fonte`); recordDiscoveryError(errorDetails, sanitizeDiscoveryError('source_discovery', 'update_failed', { source_id: source.id, source_name: source.name, db_code: sourceError.code, message: sourceError.message, details: sourceError.details, hint: sourceError.hint })); }
     }
 
-    const { data: pendingRows, error: pendingError } = await client.from('discovered_events').select('id,source_id,source_url,name,raw_title,event_date,registration_url,status,quality_status,enriched_at,city,state,latitude,longitude').eq('status','pending').limit(5000);
+    const { data: pendingRows, error: pendingError } = await client.from('discovered_events').select('id,source_id,source_url,external_id,name,raw_title,event_date,registration_url,status,quality_status,enriched_at,city,state,latitude,longitude').eq('status','pending').limit(5000);
     if (pendingError) throw pendingError;
       const sourceById = new Map(sources.map((source) => [source.id, source]));
       for (const row of sortByGeographicPriority((pendingRows || []).map((row, order) => ({ ...withCachedLocation(row), trust_level: sourceById.get(row.source_id)?.trust_level ?? 'C', order })))) {
@@ -169,7 +177,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
           if (result.qualityStatus === 'ready') ready++; else if (result.qualityStatus === 'conflict') conflicts++; else incomplete++;
         } catch (error) {
           enrichmentErrors++;
-          errorDetails.push(sanitizeDiscoveryError('enrichment', error instanceof Error ? error.name || 'error' : 'error'));
+          recordDiscoveryError(errorDetails, sanitizeDiscoveryError('candidate_enrichment', error instanceof Error ? error.name || 'error' : 'error', { operation: 'enrich_discovered_event', source_id: candidate.source_id, external_id: candidate.external_id, source_url: candidate.source_url, message: error instanceof Error ? error.message : 'falha desconhecida' }));
         }
       }
     }
@@ -177,7 +185,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
     failed++;
     const type = error instanceof Error ? error.name || 'fatal_error' : 'fatal_error';
     errors.push(error instanceof Error ? error.message : 'falha desconhecida');
-    errorDetails.push(sanitizeDiscoveryError('discovery', type));
+    recordDiscoveryError(errorDetails, sanitizeDiscoveryError('discovery', type, { message: error instanceof Error ? error.message : 'falha desconhecida' }));
     await finish(true);
     return { discovered, newCandidates, known, duplicates, errors:failed, sources:sources.length, ignored, pastIgnored, enriched, ready, incomplete, conflicts, enrichmentErrors, ...aiMetrics };
   } finally {
