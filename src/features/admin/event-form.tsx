@@ -9,6 +9,7 @@ import type { RaceEvent, EventDistance } from '@/features/events/types';
 import { generateEventEditorialContent } from '@/features/events/editorial';
 import { classifyRegistrationUrl, resolveRegistrationDestination } from '@/features/events/registration';
 import { EVENT_FALLBACK_IMAGES } from '@/features/events/fallback-images';
+import { resolveCoverImageSource } from './image-source';
 export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 const toLocal = (v?: string | null) => {
   if (!v) return '';
@@ -114,7 +115,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       regulation_url: text('regulation_url'),
       price_from: num('price_from'),
       cover_image_url: text('cover_image_url') || '/images/runners.jpg',
-      cover_image_source: text('cover_image_source'),
+      cover_image_source: resolveCoverImageSource({ existingSource: event?.cover_image_source, coverImageUrl: text('cover_image_url') }),
       fallback_image_key: fallbackImageKey,
       has_usable_official_image: data.has('has_usable_official_image'),
       short_tagline: text('short_tagline'),
