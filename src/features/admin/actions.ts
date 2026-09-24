@@ -2,6 +2,7 @@
 import { requireAdmin } from '@/lib/supabase/server';
 import { eventSchema } from '@/features/events/validation';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { z } from 'zod';
 import { OpenAIFeedImageGenerator } from '@/features/events/feed-image-generator';
 import sharp from 'sharp';
@@ -48,7 +49,13 @@ export async function saveAdminEvent(input: unknown, attemptId?: string): Promis
     revalidatePath('/', 'layout');
     const eventId = String(data);
     if (shouldGeneratePublishedFeedImage({ status: parsed.data.status, feedImageUrl: parsed.data.feed_image_url, feedImageSource: parsed.data.feed_image_source })) {
-      void generatePublishedFeedImage(eventId, 'admin_publish').catch((error) => console.error('[MapRun feed-image trigger]', { event_id: eventId, trigger: 'admin_publish', status: 'failed', type: error instanceof Error ? error.name : 'unknown' }));
+      after(async () => {
+        try {
+          await generatePublishedFeedImage(eventId, 'admin_publish');
+        } catch (error) {
+          console.error('[MapRun feed-image trigger]', { event_id: eventId, trigger: 'admin_publish', status: 'failed', type: error instanceof Error ? error.name : 'unknown' });
+        }
+      });
     }
     return { id: eventId };
   } catch (error) {
