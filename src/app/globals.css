@@ -1834,6 +1834,29 @@ blockquote span {
 .admin-heading h1 {
   font-size: 32px;
 }
+.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.admin-filters input,
+.admin-filters select {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.admin-filters input {
+  min-width: min(360px, 100%);
+  flex: 1 1 280px;
+}
+.admin-filters select {
+  flex: 0 1 auto;
+}
 .admin-table {
   width: 100%;
   border-collapse: collapse;
