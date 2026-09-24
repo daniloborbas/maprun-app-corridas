@@ -27,10 +27,8 @@ export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: 
   }, [event.id]);
   return (
     <article ref={ref} className="discovery-card">
-      <div className="card-image-frame">
-        <EventCover event={event} priority={index === 0} />
-        <div className="cover-shade" />
-      </div>
+      <EventCover event={event} priority={index === 0} />
+      <div className="cover-shade" />
       <div className="card-top">
         <span className="eyebrow">
           {event.event_category === 'trail'

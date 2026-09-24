@@ -536,7 +536,7 @@ label,
 .cover-shade {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #14231b2a 0%, transparent 30%, #0c1b16a0 56%, #07100df0 100%);
+  background: linear-gradient(180deg, #14231b16 0%, transparent 30%, #0c1b1690 56%, #07100df0 100%);
   z-index: 1;
 }
 .card-top {
@@ -2637,25 +2637,3 @@ blockquote span {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-
-@media (max-width: 700px) {
-  .discovery-card { display: flex; flex-direction: column; height: auto; min-height: 0; border-radius: 18px; background: #fff; color: var(--ink); overflow: hidden; }
-  .card-image-frame { position: relative; inset: auto; flex: 0 0 clamp(300px, 55svh, 500px); min-height: 300px; overflow: hidden; background: #24352b; }
-  .card-image-frame .cover-shade { background: linear-gradient(180deg, #14231b18 0%, transparent 70%, #07100d66 100%); }
-  .discovery-card > .card-top { display: none; }
-  .discovery-card > .card-content { position: static; order: 2; padding: 18px 18px 12px; background: #fff; color: var(--ink); }
-  .discovery-card > .card-content .category-caption { color: var(--green-dark); }
-  .discovery-card > .card-content h2 { max-width: none; margin: 5px 0 10px; color: var(--ink); font-size: 24px; line-height: 1.12; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-  .discovery-card > .card-content p { margin: 6px 0; color: var(--ink); font-size: 13px; }
-  .discovery-card > .card-content p svg { color: var(--green-dark); }
-  .discovery-card > .card-content .distance-caption { display: flex; color: var(--muted); }
-  .discovery-card > .event-actions { position: static; order: 3; display: flex; flex-direction: row; justify-content: flex-start; gap: 10px; padding: 0 18px 17px; color: var(--ink); background: #fff; }
-  .discovery-card > .event-actions button { flex-direction: row; gap: 6px; color: var(--ink); }
-  .discovery-card > .event-actions button > span { width: 38px; height: 38px; }
-  .discovery-card > .event-actions small { color: var(--muted); }
-  .discovery-card > .card-bottom { display: none; }
-}
-
-.card-image-frame { position: absolute; inset: 0; }
-
-@media (max-width: 700px) { .card-image-frame { position: relative; inset: auto; } }
