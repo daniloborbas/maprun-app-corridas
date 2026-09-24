@@ -2877,3 +2877,9 @@ blockquote span {
     line-height: 1;
   }
 }
+
+.registration-status-badge,
+.registration-status-card { display: inline-flex; align-items: center; width: fit-content; border-radius: 999px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.01em; }
+.registration-status-badge { margin: 0.35rem 0 0; padding: 0.35rem 0.7rem; background: #fff3df; color: #8a4b00; }
+.registration-status-badge.closed, .registration-status-card.closed { background: #f1f2f3; color: #555b61; }
+.registration-status-card { margin: 0.25rem 0 0.5rem; padding: 0.25rem 0.55rem; background: #fff3df; color: #8a4b00; }

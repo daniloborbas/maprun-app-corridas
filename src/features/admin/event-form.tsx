@@ -112,6 +112,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       event_category: text('event_category'),
       official_url: text('official_url'),
       registration_url: text('registration_url'),
+      registration_status: (['open', 'sold_out', 'closed'] as const).includes(text('registration_status') as 'open' | 'sold_out' | 'closed') ? text('registration_status') as 'open' | 'sold_out' | 'closed' : 'open',
       regulation_url: text('regulation_url'),
       price_from: num('price_from'),
       cover_image_url: text('cover_image_url') || '/images/runners.jpg',
@@ -267,6 +268,15 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
           <small>Link direto para a inscrição desta prova. Evite a página inicial da plataforma.</small>
           {registrationUrl && classifyRegistrationUrl(registrationUrl) === 'generic' ? <span className="field-warning">Este link parece genérico. Verifique antes de publicar.</span> : null}
           {registrationUrl && <a href={registrationUrl} target="_blank" rel="noopener noreferrer" className="text-button">Abrir link ↗</a>}
+        </label>
+        <label>
+          Status das inscrições
+          <select name="registration_status" defaultValue={event?.registration_status || 'open'}>
+            <option value="open">Abertas</option>
+            <option value="sold_out">Esgotadas</option>
+            <option value="closed">Encerradas</option>
+          </select>
+          <small>Controla a disponibilidade exibida no feed e nos detalhes.</small>
         </label>
         <label className={fieldErrors.official_url ? 'has-error' : ''}>
           Página oficial da corrida

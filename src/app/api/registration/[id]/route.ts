@@ -9,13 +9,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!client) return new Response('Inscrição indisponível nesta demonstração.', { status: 404 });
   const { data: event } = await client
     .from('events')
-    .select('registration_url,official_url,status,start_date,end_date,is_demo')
+    .select('registration_url,registration_status,official_url,status,start_date,end_date,is_demo')
     .eq('id', id)
     .is('deleted_at', null)
     .single();
   if (
     !event ||
     event.is_demo ||
+    (event.registration_status && event.registration_status !== 'open') ||
     event.status !== 'published' ||
     Date.parse(event.end_date || event.start_date) < Date.now() ||
     !resolveRegistrationDestination(event)

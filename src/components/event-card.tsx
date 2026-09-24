@@ -56,6 +56,7 @@ export function DiscoveryEventCard({ event, index }: { event: RaceEvent; index: 
                 : 'CORRIDA DE RUA'}
         </span>
         <h2>{event.name}</h2>
+        {event.registration_status && event.registration_status !== 'open' && <span className={`registration-status-card ${event.registration_status === 'sold_out' ? 'sold-out' : 'closed'}`}>{event.registration_status === 'sold_out' ? 'Esgotado' : 'Inscrições encerradas'}</span>}
         <p>
           <MapPin size={16} />
           {event.city} · {event.state}

@@ -1,5 +1,6 @@
 export type EventStatus = 'draft' | 'published' | 'cancelled' | 'finished' | 'archived';
 export type Category = 'rua' | 'trail' | 'night' | 'kids';
+export type RegistrationStatus = 'open' | 'sold_out' | 'closed';
 export interface EventDistance {
   label: string;
   distance_km: number | null;
@@ -28,6 +29,7 @@ export interface RaceEvent {
   event_category: Category;
   official_url: string;
   registration_url: string;
+  registration_status?: RegistrationStatus;
   regulation_url: string;
   price_from: number | null;
   cover_image_url: string;

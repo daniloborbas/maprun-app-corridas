@@ -56,6 +56,7 @@ export const eventSchema = z
     event_category: z.enum(['rua', 'trail', 'night', 'kids']),
     official_url: externalUrl,
     registration_url: externalUrl,
+    registration_status: z.enum(['open', 'sold_out', 'closed']).default('open'),
     regulation_url: externalUrl,
     price_from: z.number().min(0).nullable(),
     cover_image_url: z

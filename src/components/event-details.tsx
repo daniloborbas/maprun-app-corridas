@@ -21,7 +21,8 @@ import { resolveRegistrationDestination } from '@/features/events/registration';
 export function EventDetails({ event }: { event: RaceEvent }) {
   const { demo } = useApp();
   const ended = isEnded(event),
-    cancelled = event.status === 'cancelled';
+    cancelled = event.status === 'cancelled',
+    registrationStatus = event.registration_status || 'open';
   useEffect(() => {
     trackAnalyticsEvent('race_view', event.id);
   }, [event.id]);
@@ -45,6 +46,7 @@ export function EventDetails({ event }: { event: RaceEvent }) {
           <MapPin size={17} />
           {event.city} · {event.state}
         </p>
+        {registrationStatus !== 'open' && <p className={`registration-status-badge ${registrationStatus === 'sold_out' ? 'sold-out' : 'closed'}`} role="status">{registrationStatus === 'sold_out' ? 'Inscrições esgotadas' : 'Inscrições encerradas'}</p>}
         {(ended || cancelled) && (
           <p className="status-message">
             {cancelled
@@ -135,7 +137,7 @@ export function EventDetails({ event }: { event: RaceEvent }) {
           </p>
         ))}
         <div className="registration-cta">
-          {!ended && !cancelled && resolveRegistrationDestination(event) && !event.demo ? (
+          {!ended && !cancelled && registrationStatus === 'open' && resolveRegistrationDestination(event) && !event.demo ? (
             <a
               className="button"
               href={`/api/registration/${event.id}`}
@@ -150,6 +152,10 @@ export function EventDetails({ event }: { event: RaceEvent }) {
                   ? 'Evento cancelado'
                   : ended
                     ? 'Evento encerrado'
+                    : registrationStatus === 'sold_out'
+                      ? 'Inscrições esgotadas'
+                      : registrationStatus === 'closed'
+                        ? 'Inscrições encerradas'
                     : 'Inscrições em breve'}
             </button>
           )}
