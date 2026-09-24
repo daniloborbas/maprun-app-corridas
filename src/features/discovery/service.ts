@@ -55,31 +55,6 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
     if (!result.success) errorDetails.push(sanitizeDiscoveryError('ai', result.errorType ?? 'provider_error'));
   };
   try {
-    const { data: pendingRows, error: pendingError } = await client.from('discovered_events').select('id,source_id,source_url,name,raw_title,event_date,registration_url,status,quality_status,enriched_at').eq('status','pending').limit(5000);
-    if (pendingError) throw pendingError;
-      const sourceById = new Map(sources.map((source) => [source.id, source]));
-      for (const row of pendingRows || []) {
-        const candidate = { ...row, status: 'pending' as const };
-      if (candidate.event_date && Date.parse(candidate.event_date) < Date.now()) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored' }).eq('id', candidate.id); continue; }
-      if (classifyDiscoveryCandidate(candidate) !== 'EVENT') { ignored++; await client.from('discovered_events').update({ status:'ignored' }).eq('id', candidate.id); }
-      else if (enrichmentBudget > 0 && (!candidate.enriched_at || Date.now() - Date.parse(candidate.enriched_at) > 24 * 60 * 60_000)) {
-        enrichmentBudget--;
-        try {
-            const source = sourceById.get(candidate.source_id);
-            const result = await enrichDiscoveredEvent(candidate, source?.auto_ready_allowed === true, client, source?.trust_level ?? 'C', aiOptions());
-            recordAi(result.aiFallback);
-            if (result.aiFallback.attempted) console.info('[MapRun discovery] AI fallback used', { candidateId:candidate.id, success:result.aiFallback.success, errorType:result.aiFallback.errorType, ...result.aiFallback.errorMetadata });
-            if (result.aiFallback.attempted) aiBudget--;
-          if (result.past) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored', enriched_at:new Date().toISOString() }).eq('id', candidate.id); continue; }
-          await client.from('discovered_events').update({ ...result.candidate, quality_status:result.qualityStatus }).eq('id', candidate.id);
-          enriched++;
-          if (result.qualityStatus === 'ready') ready++; else if (result.qualityStatus === 'conflict') conflicts++; else incomplete++;
-        } catch (error) {
-          enrichmentErrors++;
-          errorDetails.push(sanitizeDiscoveryError('enrichment', error instanceof Error ? error.name || 'error' : 'error'));
-        }
-      }
-    }
     for (const source of sources.filter((item) => item.active)) {
       if (Date.now() - started > MAX_RUN_MS) { failed++; errors.push('Execução interrompida por limite de tempo.'); errorDetails.push(sanitizeDiscoveryError('discovery', 'timeout')); break; }
       const provider = providers.find((item) => item.supports(source));
@@ -163,6 +138,32 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
       }
       const { error: sourceError } = await client.from('discovery_sources').update({ last_checked_at:new Date().toISOString() }).eq('id',source.id);
       if (sourceError) { failed++; errors.push(`${source.name}: falha ao atualizar a fonte`); errorDetails.push(sanitizeDiscoveryError('source', 'update_failed')); }
+    }
+
+    const { data: pendingRows, error: pendingError } = await client.from('discovered_events').select('id,source_id,source_url,name,raw_title,event_date,registration_url,status,quality_status,enriched_at').eq('status','pending').limit(5000);
+    if (pendingError) throw pendingError;
+      const sourceById = new Map(sources.map((source) => [source.id, source]));
+      for (const row of pendingRows || []) {
+        const candidate = { ...row, status: 'pending' as const };
+      if (candidate.event_date && Date.parse(candidate.event_date) < Date.now()) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored' }).eq('id', candidate.id); continue; }
+      if (classifyDiscoveryCandidate(candidate) !== 'EVENT') { ignored++; await client.from('discovered_events').update({ status:'ignored' }).eq('id', candidate.id); }
+      else if (enrichmentBudget > 0 && (!candidate.enriched_at || Date.now() - Date.parse(candidate.enriched_at) > 24 * 60 * 60_000)) {
+        enrichmentBudget--;
+        try {
+            const source = sourceById.get(candidate.source_id);
+            const result = await enrichDiscoveredEvent(candidate, source?.auto_ready_allowed === true, client, source?.trust_level ?? 'C', aiOptions());
+            recordAi(result.aiFallback);
+            if (result.aiFallback.attempted) console.info('[MapRun discovery] AI fallback used', { candidateId:candidate.id, success:result.aiFallback.success, errorType:result.aiFallback.errorType, ...result.aiFallback.errorMetadata });
+            if (result.aiFallback.attempted) aiBudget--;
+          if (result.past) { pastIgnored++; await client.from('discovered_events').update({ status:'ignored', enriched_at:new Date().toISOString() }).eq('id', candidate.id); continue; }
+          await client.from('discovered_events').update({ ...result.candidate, quality_status:result.qualityStatus }).eq('id', candidate.id);
+          enriched++;
+          if (result.qualityStatus === 'ready') ready++; else if (result.qualityStatus === 'conflict') conflicts++; else incomplete++;
+        } catch (error) {
+          enrichmentErrors++;
+          errorDetails.push(sanitizeDiscoveryError('enrichment', error instanceof Error ? error.name || 'error' : 'error'));
+        }
+      }
     }
   } catch (error) {
     failed++;
