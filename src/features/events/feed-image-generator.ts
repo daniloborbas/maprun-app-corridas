@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import sharp from 'sharp';
 import type { RaceEvent } from './types';
 
 export type FeedImageContext = Pick<RaceEvent, 'name' | 'city' | 'state' | 'venue' | 'event_category' | 'description'> & { distances?: Array<{ label?: string | null }> | null };
@@ -46,6 +47,7 @@ export class OpenAIFeedImageGenerator implements FeedImageGenerator {
     });
     const encoded = result.data?.[0]?.b64_json;
     if (!encoded) throw new Error('provider_empty_image');
-    return { bytes: Buffer.from(encoded, 'base64'), mimeType: 'image/webp', prompt, provider: 'openai', durationMs: Date.now() - started };
+    const bytes = await sharp(Buffer.from(encoded, 'base64')).resize(800, 1000, { fit: 'cover', position: 'centre' }).webp({ quality: 85 }).toBuffer();
+    return { bytes, mimeType: 'image/webp', prompt, provider: 'openai', durationMs: Date.now() - started };
   }
 }
