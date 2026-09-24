@@ -13,6 +13,7 @@ describe('cover_image_source do editor', () => {
     expect(resolveCoverImageSource({ existingSource: 'ai_generated', coverImageUrl: 'https://cdn.example.com/feed.webp' })).toBe('official');
   });
   it('usa fallback quando não há arte', () => {
-    expect(resolveCoverImageSource({ coverImageUrl: '' })).toBe('fallback');
+    expect(resolveCoverImageSource({ coverImageUrl: '' })).toBeNull();
   });
 });
+

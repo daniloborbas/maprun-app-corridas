@@ -115,7 +115,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       registration_status: (['open', 'sold_out', 'closed'] as const).includes(text('registration_status') as 'open' | 'sold_out' | 'closed') ? text('registration_status') as 'open' | 'sold_out' | 'closed' : 'open',
       regulation_url: text('regulation_url'),
       price_from: num('price_from'),
-      cover_image_url: text('cover_image_url') || '/images/runners.jpg',
+      cover_image_url: text('cover_image_url') || null,
       cover_image_source: resolveCoverImageSource({ existingSource: event?.cover_image_source, coverImageUrl: text('cover_image_url') }),
       fallback_image_key: fallbackImageKey,
       has_usable_official_image: data.has('has_usable_official_image'),
@@ -297,19 +297,19 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
           <button type="button" className="text-button image-change-button" onClick={() => setOfficialImageOpen((open) => !open)}>Mudar imagem {officialImageOpen ? '▴' : '▾'}</button>
           {officialImageOpen && <div className="image-actions-menu">
             <button type="button" className="text-button" onClick={() => setMessage('O upload da arte oficial será disponibilizado neste fluxo.')}>Enviar imagem</button>
-            <label>URL da arte oficial<input name="cover_image_url" type="url" defaultValue={event?.cover_image_url} placeholder="https://..." /></label>
+            <label>URL da arte oficial<input name="cover_image_url" type="url" defaultValue={event?.cover_image_url ?? ''} placeholder="https://..." /></label>
           </div>}
         </div>
         <div className="wide feed-image-admin">
           <strong>Imagem do feed</strong>
           {event?.feed_image_url && !feedImageError ? <Image src={event.feed_image_url} alt="Prévia da imagem do feed" width={160} height={200} onError={() => setFeedImageError(true)} style={{ display: 'block', objectFit: 'cover', borderRadius: 12, margin: '8px 0' }} /> : <small>{event?.feed_image_url ? 'Não foi possível carregar a imagem do feed.' : 'Nenhuma imagem de feed gerada ainda.'}</small>}
           <small>Origem: {event?.feed_image_source === 'manual_upload' ? 'Imagem enviada manualmente' : event?.feed_image_source === 'ai_generated' ? 'Gerada por IA' : event?.feed_image_source === 'legacy' ? 'Legada' : 'Nenhuma'}</small>
-          {!event?.feed_image_url && event?.id && <button type="button" className="text-button image-change-button" onClick={regenerateFeedImage} disabled={busy}>{busy ? 'Gerando imagem…' : 'Gerar imagem com IA'}</button>}
+          {!event?.feed_image_url && <button type="button" className="text-button image-change-button" onClick={regenerateFeedImage} disabled={busy || !event?.id}>{busy ? 'Gerando imagem…' : 'Gerar imagem com IA'}</button>}
           {event?.id && <div className="image-control-card-actions">
             <button type="button" className="text-button image-change-button" onClick={() => setFeedImageOpen((open) => !open)} disabled={busy}>Mudar imagem {feedImageOpen ? '▴' : '▾'}</button>
             {feedImageOpen && <div className="image-actions-menu">
               <button type="button" className="text-button" onClick={regenerateFeedImage} disabled={busy}>{busy ? 'Gerando nova imagem…' : 'Gerar nova com IA'}</button>
-              <button type="button" className="text-button" onClick={() => feedFileRef.current?.click()} disabled={busy}>Enviar imagem</button>
+              <button type="button" className="text-button" onClick={() => feedFileRef.current?.click()} disabled={busy || !event?.id}>Enviar imagem</button>
               <input ref={feedFileRef} className="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.currentTarget.files?.[0]; if (file) void uploadFeedImage(file); }} disabled={busy} />
             </div>}
           </div>}

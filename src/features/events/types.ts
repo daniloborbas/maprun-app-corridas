@@ -32,10 +32,10 @@ export interface RaceEvent {
   registration_status?: RegistrationStatus;
   regulation_url: string;
   price_from: number | null;
-  cover_image_url: string;
+  cover_image_url: string | null;
     feed_image_url?: string | null;
     feed_image_source?: 'ai_generated' | 'manual_upload' | 'legacy' | 'none' | null;
-  cover_image_source: 'official' | 'generated' | 'fallback';
+  cover_image_source: 'official' | 'generated' | 'fallback' | null;
   fallback_image_key?: string | null;
   has_usable_official_image: boolean;
   short_tagline: string;

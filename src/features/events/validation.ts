@@ -61,8 +61,10 @@ export const eventSchema = z
     price_from: z.number().min(0).nullable(),
     cover_image_url: z
       .string()
+      .nullable()
       .refine(
         (v) =>
+          v === null ||
           [
             '/images/road.jpg',
             '/images/runners.jpg',
@@ -71,7 +73,7 @@ export const eventSchema = z
           ].includes(v) || v.startsWith('/api/events/cover') || isPublicHttpsUrl(v),
         'Imagem deve ter URL HTTPS.',
       ),
-    cover_image_source: z.enum(['official', 'generated', 'fallback']),
+    cover_image_source: z.enum(['official', 'generated', 'fallback']).nullable(),
       feed_image_url: z.string().max(2000).nullable().optional(),
       feed_image_source: z.enum(['ai_generated', 'manual_upload', 'legacy', 'none']).nullable().optional(),
     fallback_image_key: z.string().max(100).nullable().optional(),
