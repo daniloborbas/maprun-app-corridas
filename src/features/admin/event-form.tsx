@@ -135,6 +135,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       state: String(data.get('state') || ''),
       venue: String(data.get('venue') || ''),
       organizerName: String(data.get('organizer_name') || ''),
+      category: String(data.get('event_category') || ''),
       priceFrom: String(data.get('price_from') || '') ? Number(data.get('price_from')) : null,
       registrationUrl: String(data.get('registration_url') || ''),
       distances: distances.map((distance) => ({ label: distance.label, distance_km: distance.distance_km })),
