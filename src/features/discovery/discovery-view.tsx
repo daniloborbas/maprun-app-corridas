@@ -98,8 +98,10 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
               <span>Map<span className="green">Run</span></span>
             </Link>
             <LocationPicker />
+            <Link className="mobile-header-organizer-cta" href="/organizadores">
+              <span aria-hidden="true">+</span> Divulgar
+            </Link>
           </div>
-          <h1>Descobrir</h1>
         </div>
         <div className="desktop-discovery-heading">
         <h1 className="desktop-page-title">Descobrir corridas</h1>
@@ -142,9 +144,6 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
           </div>
         </div>
         </div>
-        <Link className="mobile-organizer-cta" href="/organizadores">
-          + Divulgar corrida
-        </Link>
         <div className="desktop-experience-grid">
           <div className="desktop-race-grid">
             {feed.slice(0, 6).map((event) => (
