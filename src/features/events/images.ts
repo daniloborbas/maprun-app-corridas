@@ -24,6 +24,14 @@ export function resolveEventImage(event: Pick<RaceEvent, 'id' | 'slug' | 'name' 
   return resolveEventFallbackImage(event);
 }
 
+export function getEventDetailImage(event: Pick<RaceEvent, 'cover_image_url' | 'cover_image_source' | 'has_usable_official_image' | 'feed_image_url'>): { url: string | null; illustrative: boolean } {
+  if (validUrl(event.cover_image_url) && (event.cover_image_source === 'official' || (!event.cover_image_source && event.has_usable_official_image !== false))) {
+    return { url: event.cover_image_url, illustrative: false };
+  }
+  if (validUrl(event.feed_image_url)) return { url: event.feed_image_url, illustrative: true };
+  return { url: null, illustrative: true };
+}
+
 export function resolveEventFallbackImage(event: Pick<RaceEvent, 'id' | 'slug' | 'name' | 'event_category'> & Partial<Pick<RaceEvent, 'city' | 'state' | 'venue' | 'description' | 'start_date'>>): string {
   const text = `${event.name} ${event.event_category} ${event.city || ''} ${event.state || ''} ${event.venue || ''} ${event.description || ''}`.toLowerCase();
   const terrain = /trail|montanha|serra|trilha|mata/.test(text) ? 'trail' : /night|noturna/.test(text) ? 'night' : /parque|lago|bosque/.test(text) ? 'park' : /praia|orla|litoral/.test(text) ? 'coastal' : /rural|fazenda|estrada/.test(text) ? 'rural' : 'general';

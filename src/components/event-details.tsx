@@ -30,7 +30,7 @@ export function EventDetails({ event }: { event: RaceEvent }) {
   return (
     <article className="details-page">
       <div className="details-photo">
-        <EventCover event={event} priority sizes="(max-width: 700px) 100vw, 55vw" />
+        <EventCover event={event} priority sizes="(max-width: 700px) 100vw, 55vw" useDetailImage />
         <Link href="/" className="back-button" aria-label="Voltar para descobrir">
           <ArrowLeft size={21} />
         </Link>
