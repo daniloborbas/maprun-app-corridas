@@ -2730,6 +2730,12 @@ blockquote span {
     overscroll-behavior: contain;
   }
 
+  /* Override the anchored mobile popover rule so the dialog is truly centered. */
+  .mobile-discovery-title .location-popover {
+    right: auto;
+    left: 50%;
+  }
+
   .location-dialog-header {
     display: flex;
     align-items: center;
