@@ -2696,6 +2696,10 @@ blockquote span {
   display: grid;
   gap: 8px;
 }
+.fallback-library summary {
+  cursor: pointer;
+  font-weight: 700;
+}
 .feed-image-admin h2 {
   margin: 0;
 }

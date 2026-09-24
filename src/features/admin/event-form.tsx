@@ -277,20 +277,12 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
           {resolveRegistrationDestination({ registration_url: registrationUrl, official_url: officialUrl }) && <a href={resolveRegistrationDestination({ registration_url: registrationUrl, official_url: officialUrl }) || undefined} target="_blank" rel="noopener noreferrer" className="text-button">Testar botão Inscrever-se ↗</a>}
         </div>
         {input('regulation_url', 'Regulamento (HTTPS)', event?.regulation_url, 'url')}
-        {field('cover_image_url', 'URL da capa ou caminho do fallback', event?.cover_image_url)}
+        {field('cover_image_url', 'URL da arte oficial', event?.cover_image_url)}
         <div className="wide official-art-preview">
           <strong>Arte oficial da corrida</strong>
           <small>Exibida na página de detalhes da corrida.</small>
           {event?.cover_image_url ? <img src={event.cover_image_url} alt="Prévia da arte oficial da corrida" /> : <small>Nenhuma arte oficial definida.</small>}
         </div>
-        <label>
-          Origem da imagem
-          <select name="cover_image_source" defaultValue={event?.cover_image_source || 'fallback'}>
-            <option value="fallback">Template fallback</option>
-            <option value="official">Oficial</option>
-            <option value="generated">Gerada</option>
-          </select>
-        </label>
         <div className="wide feed-image-admin">
           <strong>Imagem do feed</strong>
           {event?.feed_image_url && !feedImageError ? <Image src={event.feed_image_url} alt="Prévia da imagem do feed" width={160} height={200} onError={() => setFeedImageError(true)} style={{ display: 'block', objectFit: 'cover', borderRadius: 12, margin: '8px 0' }} /> : <small>{event?.feed_image_url ? 'Não foi possível carregar a imagem do feed.' : 'Nenhuma imagem de feed gerada ainda.'}</small>}
@@ -300,7 +292,8 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.currentTarget.files?.[0]; if (file) void uploadFeedImage(file); }} disabled={busy} />
           </div>}
         </div>
-        <div className="wide fallback-library">
+        <details className="wide fallback-library">
+          <summary>Opções avançadas de fallback</summary>
           <strong>Biblioteca de capas fallback</strong>
           <small>Escolha uma capa manual ou volte para a seleção automática contextual.</small>
           <button type="button" className="text-button" onClick={() => setFallbackImageKey(null)}>Usar seleção automática</button>
@@ -315,7 +308,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
               </button>
             ))}
           </div>
-        </div>
+        </details>
         <label className="checkbox-label">
           <input
             name="has_usable_official_image"
@@ -343,7 +336,6 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
           <input type="hidden" name="description_source" defaultValue={event?.description_source || 'unknown'} />
           <textarea name="description" defaultValue={event?.description} onChange={(e) => { const source = e.currentTarget.form?.elements.namedItem('description_source') as HTMLInputElement | null; if (source && source.value !== 'editorial_generated') source.value = 'manual'; }} />
           <small>Exibida na página completa da corrida.</small>
-          {event?.id && <button type="button" className="text-button" onClick={regenerateFeedImage} disabled={busy}>Regenerar imagem do feed</button>}
         </label>
         <div className="wide">
           <button type="button" className="text-button" onClick={(e) => generateDescriptions(e.currentTarget.form as HTMLFormElement)}>
