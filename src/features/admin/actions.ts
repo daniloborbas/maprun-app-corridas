@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/supabase/server';
 import { eventSchema } from '@/features/events/validation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { buildGeneratedFeedImageUrl } from '@/features/events/images';
+import { OpenAIFeedImageGenerator } from '@/features/events/feed-image-generator';
 export async function saveAdminEvent(input: unknown, attemptId?: string): Promise<{ id?: string; error?: string; diagnosticId?: string }> {
   const diagnosticId = attemptId && /^[a-z0-9]{8}$/i.test(attemptId) ? attemptId : crypto.randomUUID().slice(0, 8);
   console.error('[MapRun event-save:start]', { diagnosticId });
@@ -73,12 +73,21 @@ export async function regenerateAdminFeedImage(id: string) {
   if (!z.uuid().safeParse(id).success) return { error: 'Evento inválido.' };
   try {
     const { client } = await requireAdmin();
-    const { data: event, error: readError } = await client.from('events').select('id,slug,name,city,state,event_category,start_date,price_from,feed_image_url').eq('id', id).maybeSingle();
+    const { data: event, error: readError } = await client.from('events').select('id,slug,name,city,state,venue,event_category,description,feed_image_url,event_distances(label)').eq('id', id).maybeSingle();
     if (readError || !event) return { error: 'Evento não encontrado.' };
-    const feedImageUrl = buildGeneratedFeedImageUrl({ slug: event.slug, name: event.name, city: event.city, state: event.state, category: event.event_category, startDate: event.start_date, price: event.price_from });
+    const generated = await new OpenAIFeedImageGenerator().generate(event);
+    const path = `${id}/feed-${Date.now()}.webp`;
+    const upload = await client.storage.from('event-feed').upload(path, new Blob([new Uint8Array(generated.bytes)], { type: generated.mimeType }), { contentType: generated.mimeType, cacheControl: '31536000', upsert: true });
+    if (upload.error) throw new Error('storage_upload_failed');
+    const { data: publicData } = client.storage.from('event-feed').getPublicUrl(path);
+    const feedImageUrl = publicData.publicUrl;
     const { error } = await client.from('events').update({ feed_image_url: feedImageUrl }).eq('id', id);
     if (error) return { error: 'Não foi possível gerar a imagem.' };
     revalidatePath('/', 'layout');
     return { success: true, feedImageUrl };
-  } catch { return { error: 'Acesso negado.' }; }
+  } catch (error) { console.error('[MapRun feed-image]', { type: error instanceof Error ? error.message : 'unknown' }); return { error: 'Não foi possível gerar a imagem agora.' }; }
+}
+
+export async function generatePublishedFeedImage(id: string) {
+  return regenerateAdminFeedImage(id);
 }

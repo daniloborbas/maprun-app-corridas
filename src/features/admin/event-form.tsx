@@ -3,12 +3,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Plus, Trash2 } from 'lucide-react';
-import { saveAdminEvent, deleteAdminEvent, regenerateAdminFeedImage } from './actions';
+import { saveAdminEvent, deleteAdminEvent, regenerateAdminFeedImage, generatePublishedFeedImage } from './actions';
 import type { RaceEvent, EventDistance } from '@/features/events/types';
 import { generateEventEditorialContent } from '@/features/events/editorial';
 import { classifyRegistrationUrl, resolveRegistrationDestination } from '@/features/events/registration';
 import { EVENT_FALLBACK_IMAGES } from '@/features/events/fallback-images';
-import { buildGeneratedFeedImageUrl } from '@/features/events/images';
 export function slugify(value: string) { return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 const toLocal = (v?: string | null) => {
   if (!v) return '';
@@ -77,7 +76,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
       short_description: text('short_description'),
       description: text('description'),
       description_source: text('description_source') || 'unknown',
-      feed_image_url: nextStatus === 'published' && !event?.feed_image_url ? buildGeneratedFeedImageUrl({ slug: text('slug') || slugify(text('name')), name: text('name'), city: text('city'), state: text('state').toUpperCase(), category: text('event_category'), distances: distances.map((d) => d.label), startDate: text('start_date'), price: num('price_from') }) : (event?.feed_image_url || null),
+      feed_image_url: event?.feed_image_url || null,
       start_date: `${text('start_date')}:00-03:00`,
       end_date: text('end_date') ? `${text('end_date')}:00-03:00` : null,
       city: text('city'),
@@ -116,6 +115,9 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
     if (result.error) { const next = { ...fieldErrors }; if (result.error.includes('slug')) next.slug = result.error; else if (result.error.includes('coordenadas')) { next.latitude = result.error; next.longitude = result.error; } setFieldErrors(next); const safe = Boolean(result.diagnosticId) || result.error.startsWith('Já existe') || result.error.startsWith('Este slug') || result.error.startsWith('Sua sessão') || result.error.startsWith('A categoria') || result.error.startsWith('Não foi possível salvar uma'); setMessage(safe ? (result.diagnosticId ? `${result.error} Código de diagnóstico: ${result.diagnosticId}` : result.error) : 'Não foi possível salvar agora. Tente novamente.'); }
     else {
       setMessage('Evento salvo.');
+      if (nextStatus === 'published' && result.id && !event?.feed_image_url) {
+        void generatePublishedFeedImage(result.id).catch((error) => console.error('[MapRun feed-image publish]', { type: error instanceof Error ? error.name : 'unknown' }));
+      }
       router.push('/admin/eventos');
       router.refresh();
     }
