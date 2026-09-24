@@ -99,7 +99,7 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
             </Link>
             <LocationPicker />
             <Link className="mobile-header-organizer-cta" href="/organizadores">
-              <span aria-hidden="true">+</span> Divulgar
+              Divulgar corrida
             </Link>
           </div>
         </div>
@@ -229,3 +229,4 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
     </div>
   );
 }
+
