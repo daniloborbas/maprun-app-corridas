@@ -9,10 +9,11 @@ import { getResearchModelConfiguration } from '@/features/discovery/openai-resea
 import type { DiscoverySource } from '@/features/discovery/types';
 
 const requestSchema = z.object({
-  action: z.enum(['discover', 'dry-run', 'discover-and-dry-run']),
+  action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run']),
   sourceIds: z.array(z.string().uuid()).max(50).optional(),
   candidateIds: z.array(z.string().uuid()).max(10).optional(),
   sourceLimit: z.number().int().min(1).max(50).optional(),
+  sourceId: z.string().uuid().optional(),
   limit: z.number().int().min(1).max(10).optional(),
   enableResearch: z.boolean().optional(),
   researchLimit: z.number().int().min(0).max(10).optional(),
@@ -42,20 +43,22 @@ async function discover(sources: DiscoverySource[], client: ReturnType<typeof ad
     durationMs: number;
     success: boolean;
     error?: string;
+    truncated: boolean;
+    discoveryLimit: number;
   }[] = [];
   for (const source of sources) {
     const sourceStarted = Date.now();
     try {
-      const result = await discoverAndPersistFromSource(source, {}, client);
+      const result = await discoverAndPersistFromSource(source, { maxDiscoveredUrls: 200 }, client);
       urlsFound += result.urlsFound;
       candidatesNew += result.newCandidates;
       candidatesExisting += result.existingCandidates;
       await recordDiscoverySourceSuccess(source, new Date(), client);
-      sourceResults.push({ sourceId: source.id, sourceName: source.name, urlsFound: result.urlsFound, candidatesNew: result.newCandidates, candidatesExisting: result.existingCandidates, candidatesPersisted: result.candidatesPersisted, durationMs: Date.now() - sourceStarted, success: true });
+      sourceResults.push({ sourceId: source.id, sourceName: source.name, urlsFound: result.urlsFound, candidatesNew: result.newCandidates, candidatesExisting: result.existingCandidates, candidatesPersisted: result.candidatesPersisted, durationMs: Date.now() - sourceStarted, success: true, truncated: result.truncated, discoveryLimit: result.discoveryLimit });
     } catch (error) {
       const message = safeError(error);
       errors.push({ sourceId: source.id, source: source.name, error: message });
-      sourceResults.push({ sourceId: source.id, sourceName: source.name, urlsFound: 0, candidatesNew: 0, candidatesExisting: 0, candidatesPersisted: 0, durationMs: Date.now() - sourceStarted, success: false, error: message });
+      sourceResults.push({ sourceId: source.id, sourceName: source.name, urlsFound: 0, candidatesNew: 0, candidatesExisting: 0, candidatesPersisted: 0, durationMs: Date.now() - sourceStarted, success: false, error: message, truncated: false, discoveryLimit: 200 });
       try { await recordDiscoverySourceFailure(source, new Date(), client); } catch { /* preserve the original source error */ }
     }
   }
@@ -99,6 +102,29 @@ export async function POST(request: Request) {
   let client;
   try { client = adminDb(); } catch { return NextResponse.json({ error: 'Banco indisponível.' }, { status: 503 }); }
   try {
+    if (input.action === 'list-sources') {
+      const sources = await listSourcesReadyForCrawl(new Date(), client);
+      return NextResponse.json({ sources: sources.slice(0, input.sourceLimit ?? 3).map((source) => ({ id: source.id, name: source.name })) });
+    }
+    if (input.action === 'discover-source') {
+      if (!input.sourceId) return NextResponse.json({ error: 'sourceId é obrigatório.' }, { status: 400 });
+      const sources = await listSourcesReadyForCrawl(new Date(), client);
+      const source = sources.find((item) => item.id === input.sourceId);
+      if (!source) return NextResponse.json({ error: 'Fonte inexistente, inativa ou não pronta para crawl.' }, { status: 404 });
+      const started = Date.now();
+      try {
+        const result = await Promise.race([
+          discoverAndPersistFromSource(source, { maxDiscoveredUrls: 200 }, client),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Tempo limite da fonte excedido.')), 45_000)),
+        ]);
+        await recordDiscoverySourceSuccess(source, new Date(), client);
+        return NextResponse.json({ sourceId: source.id, sourceName: source.name, urlsFound: result.urlsFound, candidatesNew: result.newCandidates, candidatesExisting: result.existingCandidates, candidatesPersisted: result.candidatesPersisted, truncated: result.truncated, discoveryLimit: result.discoveryLimit, durationMs: Date.now() - started, success: true });
+      } catch (error) {
+        const message = safeError(error);
+        try { await recordDiscoverySourceFailure(source, new Date(), client); } catch { /* preserve source error */ }
+        return NextResponse.json({ sourceId: source.id, sourceName: source.name, urlsFound: 0, candidatesNew: 0, candidatesExisting: 0, candidatesPersisted: 0, truncated: false, discoveryLimit: 200, durationMs: Date.now() - started, success: false, error: message }, { status: 200 });
+      }
+    }
     let discovery;
     let discoveryStartedAt: Date | null = null;
     if (input.action === 'discover' || input.action === 'discover-and-dry-run') {

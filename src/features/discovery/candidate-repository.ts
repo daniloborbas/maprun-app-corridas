@@ -74,5 +74,7 @@ export async function recoverExpiredProcessingCandidates(limit = 50, client?: Su
 
 export async function discoverAndPersistFromSource(source: DiscoverySource, context: DiscoveryProviderContext = {}, client?: SupabaseClient) {
   const urls = await discoverUrlsFromSource(source, context);
-  return upsertDiscoveredCandidates(source, urls, client);
+  const result = await upsertDiscoveredCandidates(source, urls, client);
+  const discoveryLimit = Math.max(1, Math.min(500, context.maxDiscoveredUrls ?? 500));
+  return { ...result, discoveryLimit, truncated: urls.length >= discoveryLimit };
 }

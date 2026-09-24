@@ -1,52 +1,10 @@
 'use client';
 import { useState } from 'react';
-
-export const DISCOVERY_V2_DISCOVER_REQUEST = { action: 'discover', sourceLimit: 3 } as const;
-
-type DiscoveryResponse = {
-  discovery?: {
-    sourcesProcessed: number;
-    sourcesSucceeded: number;
-    sourcesFailed: number;
-    urlsFound: number;
-    candidatesNew: number;
-    candidatesExisting: number;
-    candidatesPersisted: number;
-    durationMs: number;
-    errors: { source: string; error: string }[];
-    sourceResults: { sourceId: string; sourceName: string; urlsFound: number; candidatesNew: number; candidatesExisting: number; candidatesPersisted: number; durationMs: number; success: boolean; error?: string }[];
-  };
-  candidates?: { url: string; source: string; titleHint: string | null; discoveryMethod: string }[];
-  error?: string;
-};
-
+export const DISCOVERY_V2_DISCOVER_REQUEST = { action: 'list-sources', sourceLimit: 3 } as const;
+type SourceResult = { sourceId: string; sourceName: string; urlsFound: number; candidatesNew: number; candidatesExisting: number; candidatesPersisted: number; durationMs: number; success: boolean; error?: string; truncated?: boolean; discoveryLimit?: number };
+type DiscoveryResponse = { discovery?: { sourcesProcessed: number; sourcesSucceeded: number; sourcesFailed: number; urlsFound: number; candidatesNew: number; candidatesExisting: number; candidatesPersisted: number; durationMs: number; errors: { source: string; error: string }[]; sourceResults: SourceResult[] }; candidates?: { url: string; source: string; titleHint: string | null; discoveryMethod: string }[]; error?: string };
 export function DiscoveryV2TestPanel() {
-  const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [result, setResult] = useState<DiscoveryResponse | null>(null);
-  async function run() {
-    setState('loading');
-    setResult(null);
-    try {
-      const response = await fetch('/api/admin/discovery/dry-run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(DISCOVERY_V2_DISCOVER_REQUEST) });
-      const data = await response.json() as DiscoveryResponse;
-      setResult(data);
-      setState(response.ok ? 'success' : 'error');
-    } catch {
-      setResult({ error: 'Não foi possível executar a descoberta.' });
-      setState('error');
-    }
-  }
-  const summary = result?.discovery;
-  return <section className="admin-note" aria-labelledby="discovery-v2-test-title">
-    <strong id="discovery-v2-test-title">Discovery V2 — Teste</strong>
-    <p>Execução manual controlada para avaliar URLs candidatas.</p>
-    <button className="button" type="button" onClick={run} disabled={state === 'loading'}>{state === 'loading' ? 'Carregando…' : 'Executar discovery em 3 fontes'}</button>
-    {state === 'error' && <p role="alert">{result?.error || 'Falha na descoberta.'}</p>}
-    {state === 'success' && summary && <div role="status">
-      <p>Sucesso · {summary.sourcesProcessed} fontes · {summary.urlsFound} URLs · {summary.candidatesNew} novas · {summary.candidatesExisting} existentes · {summary.candidatesPersisted} persistidas · {summary.durationMs} ms</p>
-      {summary.errors.length > 0 && <ul>{summary.errors.map((error) => <li key={error.source}>{error.source}: {error.error}</li>)}</ul>}
-      {summary.sourceResults.length > 0 && <ul>{summary.sourceResults.map((source) => <li key={source.sourceId}>{source.sourceName}: {source.success ? `${source.urlsFound} URLs, ${source.candidatesNew} novas, ${source.candidatesExisting} existentes` : `erro: ${source.error}`}</li>)}</ul>}
-      {(result.candidates || []).length > 0 && <div className="table-scroll"><table className="admin-table"><thead><tr><th>URL</th><th>Fonte</th><th>Title hint</th><th>Método</th></tr></thead><tbody>{result.candidates?.map((candidate) => <tr key={`${candidate.source}-${candidate.url}`}><td><a href={candidate.url} target="_blank" rel="noopener noreferrer">{candidate.url}</a></td><td>{candidate.source}</td><td>{candidate.titleHint || '—'}</td><td>{candidate.discoveryMethod}</td></tr>)}</tbody></table></div>}
-    </div>}
-  </section>;
+ const [state,setState]=useState<'idle'|'loading'|'success'|'error'>('idle'); const [result,setResult]=useState<DiscoveryResponse|null>(null);
+ async function run(){setState('loading');setResult(null);try{const headers={'Content-Type':'application/json'};const lr=await fetch('/api/admin/discovery/dry-run',{method:'POST',headers,body:JSON.stringify(DISCOVERY_V2_DISCOVER_REQUEST)});const listed=await lr.json() as {sources?:{id:string;name:string}[];error?:string};if(!lr.ok||!listed.sources)throw new Error(listed.error||'Não foi possível carregar as fontes.');const sourceResults:SourceResult[]=[];const started=Date.now();for(const source of listed.sources.slice(0,3)){const response=await fetch('/api/admin/discovery/dry-run',{method:'POST',headers,body:JSON.stringify({action:'discover-source',sourceId:source.id})});const data=await response.json() as Record<string,unknown>;const item:SourceResult={sourceId:source.id,sourceName:source.name,urlsFound:Number(data.urlsFound||0),candidatesNew:Number(data.candidatesNew||0),candidatesExisting:Number(data.candidatesExisting||0),candidatesPersisted:Number(data.candidatesPersisted||0),durationMs:Number(data.durationMs||0),success:data.success===true,error:typeof data.error==='string'?data.error:undefined,truncated:data.truncated===true,discoveryLimit:Number(data.discoveryLimit||200)};sourceResults.push(item)}const totals=sourceResults.reduce((a,i)=>({urlsFound:a.urlsFound+i.urlsFound,candidatesNew:a.candidatesNew+i.candidatesNew,candidatesExisting:a.candidatesExisting+i.candidatesExisting,candidatesPersisted:a.candidatesPersisted+i.candidatesPersisted}),{urlsFound:0,candidatesNew:0,candidatesExisting:0,candidatesPersisted:0});setResult({discovery:{sourcesProcessed:sourceResults.length,sourcesSucceeded:sourceResults.filter(i=>i.success).length,sourcesFailed:sourceResults.filter(i=>!i.success).length,...totals,durationMs:Date.now()-started,errors:sourceResults.filter(i=>!i.success).map(i=>({source:i.sourceName,error:i.error||'Falha controlada.'})),sourceResults}});setState('success')}catch(error){setResult({error:error instanceof Error?error.message:'Não foi possível executar a descoberta.'});setState('error')}}
+ const summary=result?.discovery; return <section className="admin-note" aria-labelledby="discovery-v2-test-title"><strong id="discovery-v2-test-title">Discovery V2 — Teste</strong><p>Execução manual controlada para avaliar URLs candidatas.</p><button className="button" type="button" onClick={run} disabled={state==='loading'}>{state==='loading'?'Carregando…':'Executar discovery em 3 fontes'}</button>{state==='error'&&<p role="alert">{result?.error||'Falha na descoberta.'}</p>}{state==='success'&&summary&&<div role="status"><p>{summary.sourcesSucceeded}/{summary.sourcesProcessed} fontes · {summary.urlsFound} URLs · {summary.candidatesNew} novas · {summary.candidatesExisting} existentes · {summary.candidatesPersisted} persistidas · {summary.durationMs} ms</p>{summary.errors.length>0&&<ul>{summary.errors.map(e=><li key={e.source}>{e.source}: {e.error}</li>)}</ul>}<ul>{summary.sourceResults.map(s=><li key={s.sourceId}>{s.sourceName}: {s.success?`${s.urlsFound} URLs, ${s.candidatesNew} novas, ${s.candidatesExisting} existentes${s.truncated?' (limite atingido)':''}`:`erro: ${s.error}`}</li>)}</ul></div>}</section>
 }

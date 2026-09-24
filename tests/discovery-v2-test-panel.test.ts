@@ -3,6 +3,6 @@ import { DISCOVERY_V2_DISCOVER_REQUEST } from '@/features/discovery/discovery-v2
 
 describe('Discovery V2 admin control', () => {
   it('uses only the controlled discover action and source limit', () => {
-    expect(DISCOVERY_V2_DISCOVER_REQUEST).toEqual({ action: 'discover', sourceLimit: 3 });
+    expect(DISCOVERY_V2_DISCOVER_REQUEST).toEqual({ action: 'list-sources', sourceLimit: 3 });
   });
 });

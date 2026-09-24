@@ -8,7 +8,7 @@ export interface DiscoveredUrl {
   discoveryMethod: DiscoveryMethod;
   titleHint?: string;
 }
-export interface DiscoveryProviderContext { fetcher?: typeof fetch; now?: Date; }
+export interface DiscoveryProviderContext { fetcher?: typeof fetch; now?: Date; maxDiscoveredUrls?: number; }
 export interface UrlDiscoveryProvider {
   discover(source: DiscoverySource, context?: DiscoveryProviderContext): Promise<DiscoveredUrl[]>;
 }
@@ -68,14 +68,15 @@ async function fetchText(rawUrl: string, source: DiscoverySource, context: Disco
 }
 
 function xmlLocations(xml: string) { return [...xml.matchAll(/<loc[^>]*>\s*([\s\S]*?)\s*<\/loc>/gi)].map((match) => textFromHtml(match[1])); }
-function addUnique(result: DiscoveredUrl[], item: DiscoveredUrl) { if (result.length < MAX_URLS && !result.some((existing) => existing.url === item.url)) result.push(item); }
+function addUnique(result: DiscoveredUrl[], item: DiscoveredUrl, limit = MAX_URLS) { if (result.length < limit && !result.some((existing) => existing.url === item.url)) result.push(item); }
 
 export const sitemapDiscoveryProvider: UrlDiscoveryProvider = {
   async discover(source, context = {}) {
     const discoveredAt = (context.now || new Date()).toISOString();
     const result: DiscoveredUrl[] = [];
+    const limit = Math.max(1, Math.min(MAX_URLS, context.maxDiscoveredUrls ?? MAX_URLS));
     async function visit(sitemapUrl: string, depth: number) {
-      if (depth > MAX_SITEMAP_DEPTH || result.length >= MAX_URLS) return;
+      if (depth > MAX_SITEMAP_DEPTH || result.length >= limit) return;
       const xml = await fetchText(sitemapUrl, source, context);
       const locations = xmlLocations(xml);
       if (/<sitemapindex\b/i.test(xml)) {
@@ -84,7 +85,7 @@ export const sitemapDiscoveryProvider: UrlDiscoveryProvider = {
       }
       for (const location of locations) {
         const url = normalizeDiscoveryUrl(location, source.base_url);
-        if (url) addUnique(result, { url, sourceId: source.id, discoveredAt, discoveryMethod: 'sitemap' });
+        if (url) addUnique(result, { url, sourceId: source.id, discoveredAt, discoveryMethod: 'sitemap' }, limit);
       }
     }
     await visit(source.base_url, 0);
@@ -99,10 +100,11 @@ export const listingPageDiscoveryProvider: UrlDiscoveryProvider = {
     const exclude = configPatterns(source, 'excludePatterns');
     const discoveredAt = (context.now || new Date()).toISOString();
     const result: DiscoveredUrl[] = [];
+    const limit = Math.max(1, Math.min(MAX_URLS, context.maxDiscoveredUrls ?? MAX_URLS));
     for (const [, href, label] of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
       const url = normalizeDiscoveryUrl(href, source.base_url);
       if (!url || (include.length > 0 && !include.some((pattern) => pattern.test(url))) || exclude.some((pattern) => pattern.test(url))) continue;
-      addUnique(result, { url, sourceId: source.id, discoveredAt, discoveryMethod: 'listing_page', titleHint: textFromHtml(label) || undefined });
+      addUnique(result, { url, sourceId: source.id, discoveredAt, discoveryMethod: 'listing_page', titleHint: textFromHtml(label) || undefined }, limit);
     }
     return result;
   },
