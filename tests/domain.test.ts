@@ -121,6 +121,12 @@ describe('dates, search and eligibility', () => {
   it('displays the Brazilian day across UTC midnight', () => {
     expect(formatDate('2026-10-19T01:00:00Z')).toContain('18');
   });
+  it('preserves civil dates stored at UTC midnight', () => {
+    expect(formatDate('2026-11-15T00:00:00Z')).toContain('15');
+    expect(formatDate('2026-11-15T00:00:00+00:00')).toContain('15');
+    expect(formatDate('2026-11-29T00:00:00Z')).toContain('29');
+    expect(formatDate('2026-11-15T00:00:00Z')).not.toContain('14');
+  });
   it('keeps an ongoing event until its explicit end', () => {
     expect(
       isEnded(

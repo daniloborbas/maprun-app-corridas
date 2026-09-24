@@ -12,7 +12,7 @@ export function slugify(value: string) { return value.normalize('NFD').replace(/
 const toLocal = (v?: string | null) => {
   if (!v) return '';
   if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v}T00:00`;
-  if (/^\d{4}-\d{2}-\d{2}T00:00:00(?:\.000)?Z$/.test(v)) return `${v.slice(0, 10)}T00:00`;
+  if (/^\d{4}-\d{2}-\d{2}T00:00:00(?:\.000)?(?:Z|\+00:00)$/.test(v)) return `${v.slice(0, 10)}T00:00`;
   return new Date(new Date(v).getTime() - 3 * 3600000).toISOString().slice(0, 16);
 };
 export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manual', disableSave = false }: { event?: RaceEvent; forceDraft?: boolean | 'finished'; sourceMethod?: string; disableSave?: boolean }) {

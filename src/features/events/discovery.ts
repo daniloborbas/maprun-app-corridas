@@ -79,6 +79,8 @@ export const getNearbyEvents = (events: RaceEvent[], location: Coordinates, radi
   getDiscoveryFeed(events, { location, radius, sort: 'nearby' });
 export const formatDate = (date: string) => {
   const civil = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const civilMidnightUtc = /^(\d{4})-(\d{2})-(\d{2})T00:00:00(?:\.000)?(?:Z|\+00:00)$/.exec(date);
+  if (civilMidnightUtc) return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${civilMidnightUtc[1]}-${civilMidnightUtc[2]}-${civilMidnightUtc[3]}T00:00:00Z`));
   if (civil) return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`));
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
