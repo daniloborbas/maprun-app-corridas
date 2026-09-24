@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Plus, Trash2 } from 'lucide-react';
@@ -47,6 +47,10 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
   const [officialUrl, setOfficialUrl] = useState(event?.official_url || '');
   const [registrationUrl, setRegistrationUrl] = useState(event?.registration_url || '');
   const [fallbackImageKey, setFallbackImageKey] = useState(event?.fallback_image_key || null);
+  const [feedImageError, setFeedImageError] = useState(false);
+  useEffect(() => {
+    setFeedImageError(false);
+  }, [event?.feed_image_url]);
   const [message, setMessage] = useState(''),
     [fieldErrors, setFieldErrors] = useState<Record<string, string>>({}),
     [busy, setBusy] = useState(false),
@@ -283,7 +287,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
         </label>
         <div className="wide feed-image-admin">
           <strong>Imagem do feed</strong>
-          {event?.feed_image_url ? <Image src={event.feed_image_url} alt="Prévia da imagem do feed" width={160} height={200} style={{ display: 'block', objectFit: 'cover', borderRadius: 12, margin: '8px 0' }} /> : <small>Nenhuma imagem de feed definida.</small>}
+          {event?.feed_image_url && !feedImageError ? <Image src={event.feed_image_url} alt="Prévia da imagem do feed" width={160} height={200} onError={() => setFeedImageError(true)} style={{ display: 'block', objectFit: 'cover', borderRadius: 12, margin: '8px 0' }} /> : <small>{event?.feed_image_url ? 'Não foi possível carregar a imagem do feed.' : 'Nenhuma imagem de feed gerada ainda.'}</small>}
           <small>Origem: {event?.feed_image_source === 'manual_upload' ? 'Imagem enviada manualmente' : event?.feed_image_source === 'ai_generated' ? 'Gerada por IA' : event?.feed_image_source === 'legacy' ? 'Legada' : 'Nenhuma'}</small>
           {event?.id && <div>
             <button type="button" className="text-button" onClick={regenerateFeedImage} disabled={busy}>Gerar nova com IA</button>
