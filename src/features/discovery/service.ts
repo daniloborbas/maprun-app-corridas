@@ -10,6 +10,7 @@ import { calculateDiscoveryConfidence } from './confidence';
 import { observeAiFallback, recordDiscoveryError, sanitizeDiscoveryError, type DiscoveryAiMetrics, type DiscoveryErrorDetail } from './observability';
 import { buildDiscoveryRunUpdate } from './run-update';
 import { sortByGeographicPriority } from './enrichment-priority';
+import { toDiscoveredEventInsert } from './persistence';
 export const providers = [tfsportsProvider, htmlCalendarProvider];
 export class DiscoveryAlreadyRunning extends Error {}
 const STALE_MS = 10 * 60_000;
@@ -133,7 +134,7 @@ export async function runDiscovery({ sources, client }: { sources: DiscoverySour
           });
           enrichedCandidate.confidence_score = finalConfidence.score;
           enrichedCandidate.confidence_reasons = finalConfidence.reasons;
-          const { error: insertError } = await client.from('discovered_events').insert({ ...enrichedCandidate, quality_status });
+          const { error: insertError } = await client.from('discovered_events').insert(toDiscoveredEventInsert(enrichedCandidate, quality_status));
           if (insertError) {
             recordDiscoveryError(errorDetails, sanitizeDiscoveryError('candidate_persistence', 'database_error', {
               operation: 'insert_discovered_event', source_id: source.id, source_name: source.name,
