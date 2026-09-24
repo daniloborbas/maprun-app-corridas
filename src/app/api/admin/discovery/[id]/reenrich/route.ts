@@ -22,7 +22,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     if (error) return NextResponse.json({ error: 'Não foi possível salvar o enrichment.' }, { status: 503 });
     return NextResponse.json({ candidate: { ...result.candidate, quality_status: result.qualityStatus } });
   } catch (error) {
-    console.error('[MapRun discovery manual enrichment:error]', { candidateId: id, stage: 'enrichment', type: error instanceof Error ? error.name || 'error' : 'error' });
+    let safeUrl = '';
+    try { const parsed = new URL(candidate.source_url); safeUrl = `${parsed.origin}${parsed.pathname}`; } catch { /* sanitized fallback */ }
+    console.error('[MapRun discovery manual enrichment:error]', { candidateId: id, sourceId: candidate.source_id, sourceUrl: safeUrl, stage: 'enrichment', type: error instanceof Error ? error.message || error.name || 'error' : 'error' });
     return NextResponse.json({ error: 'Não foi possível enriquecer o candidato.' }, { status: 422 });
   }
 }
