@@ -533,6 +533,26 @@ label,
   object-fit: cover;
   transition: transform 0.7s;
 }
+@media (min-width: 761px) {
+  .details-page {
+    max-width: 1240px;
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+    gap: 48px;
+  }
+  .details-photo {
+    height: min(78vh, 760px);
+    min-height: 420px;
+    max-height: 760px;
+    background: #f4f7f4;
+    border: 1px solid var(--line);
+  }
+  .details-photo .event-image {
+    object-fit: contain;
+    object-position: center;
+    max-width: 100%;
+    max-height: 100%;
+  }
+}
 .cover-shade {
   position: absolute;
   inset: 0;
