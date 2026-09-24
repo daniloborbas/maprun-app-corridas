@@ -19,11 +19,13 @@ import { useApp } from './app-provider';
 import { trackAnalyticsEvent } from '@/features/analytics/client';
 import { resolveRegistrationDestination } from '@/features/events/registration';
 import { getRegistrationStatusPresentation } from '@/features/events/registration-status';
+import { getEventDetailImage } from '@/features/events/images';
 export function EventDetails({ event }: { event: RaceEvent }) {
   const { demo } = useApp();
   const ended = isEnded(event),
     cancelled = event.status === 'cancelled',
-    registration = getRegistrationStatusPresentation(event.registration_status);
+    registration = getRegistrationStatusPresentation(event.registration_status),
+    detailImage = getEventDetailImage(event);
   useEffect(() => {
     trackAnalyticsEvent('race_view', event.id);
   }, [event.id]);
@@ -35,7 +37,7 @@ export function EventDetails({ event }: { event: RaceEvent }) {
           <ArrowLeft size={21} />
         </Link>
         <span className="photo-label">
-          {event.cover_image_source === 'official' ? 'Imagem do evento' : 'Imagem ilustrativa'}
+          {detailImage.illustrative ? 'Imagem ilustrativa' : 'Imagem do evento'}
         </span>
       </div>
       <div className="details-content">

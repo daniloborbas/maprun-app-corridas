@@ -291,7 +291,7 @@ export function AdminEventForm({ event, forceDraft = false, sourceMethod = 'manu
         <div className="wide official-art-preview image-control-card">
           <strong>Arte oficial da corrida</strong>
           <small>Exibida na página de detalhes da corrida.</small>
-          {event?.cover_image_url ? <img src={event.cover_image_url} alt="Prévia da arte oficial da corrida" /> : <small>Nenhuma arte oficial definida.</small>}
+          {event?.cover_image_url ? <img src={event.cover_image_url} alt="Prévia da arte oficial da corrida" /> : <><small>Nenhuma arte oficial cadastrada.</small>{event?.feed_image_url && <small>Nos detalhes será utilizada a imagem do feed gerada por IA.</small>}</>}
           <small>Origem: {event?.cover_image_source === 'official' ? 'URL externa' : event?.cover_image_url ? 'URL externa' : 'Nenhuma'}</small>
           {!officialImageOpen && <input type="hidden" name="cover_image_url" value={event?.cover_image_url || ''} readOnly />}
           <button type="button" className="text-button image-change-button" onClick={() => setOfficialImageOpen((open) => !open)}>Mudar imagem {officialImageOpen ? '▴' : '▾'}</button>
