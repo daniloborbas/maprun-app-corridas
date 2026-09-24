@@ -142,6 +142,9 @@ export function DiscoveryView({ events }: { events: RaceEvent[] }) {
           </div>
         </div>
         </div>
+        <Link className="mobile-organizer-cta" href="/organizadores">
+          + Divulgar corrida
+        </Link>
         <div className="desktop-experience-grid">
           <div className="desktop-race-grid">
             {feed.slice(0, 6).map((event) => (
