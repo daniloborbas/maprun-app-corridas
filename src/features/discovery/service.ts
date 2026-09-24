@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { htmlCalendarProvider } from './providers/html-calendar';
+import { tfsportsProvider } from './providers/tfsports';
 import type { DiscoverySource, DiscoveryRunSummary } from './types';
 import { classifyDiscoveryCandidate } from './classifier';
 import { enrichDiscoveredEvent } from './enrichment';
@@ -8,7 +9,7 @@ import { findBestEventDeduplication } from './deduplication';
 import { calculateDiscoveryConfidence } from './confidence';
 import { observeAiFallback, sanitizeDiscoveryError, type DiscoveryAiMetrics } from './observability';
 import { buildDiscoveryRunUpdate } from './run-update';
-export const providers = [htmlCalendarProvider];
+export const providers = [tfsportsProvider, htmlCalendarProvider];
 export class DiscoveryAlreadyRunning extends Error {}
 const STALE_MS = 10 * 60_000;
 const MAX_RUN_MS = 4 * 60_000;
