@@ -7,12 +7,10 @@ export function EventCover({
   event,
   priority = false,
   sizes = '(max-width: 700px) 100vw, 700px',
-  className = 'event-image',
 }: {
   event: RaceEvent;
   priority?: boolean;
   sizes?: string;
-  className?: string;
 }) {
   const [failed, setFailed] = useState(false);
   const fallback = resolveEventFallbackImage(event);
@@ -29,7 +27,7 @@ export function EventCover({
       fill
       sizes={sizes}
       priority={priority}
-      className={className}
+      className="event-image"
       unoptimized={src.startsWith('https://') || src.startsWith('/api/events/cover')}
       onError={() => setFailed(true)}
     />
