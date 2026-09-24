@@ -116,7 +116,11 @@ export function extractEventExtraction(html: string, sourceUrl: string): Extract
   return {event,draft,fieldSources,extractionQuality,shouldUseAiFallback:shouldUseAiFallback(extractionQuality),relevantPageText:extractRelevantPageText(html)};
 }
 export async function fetchEventPage(rawUrl: string): Promise<ImportedEventDraft> {
-  const originalUrl = await assertSafeImportUrl(rawUrl);
+  const safeUrl = await assertSafeImportUrl(rawUrl);
+  const parsedUrl = new URL(safeUrl);
+  const originalUrl = parsedUrl.hostname === 'www.tfsports.com.br' && /^\/run-series\/[^/]+$/i.test(parsedUrl.pathname)
+    ? `${safeUrl}/`
+    : safeUrl;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {

@@ -15,6 +15,13 @@ describe('redirects seguros do importador', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('normaliza páginas TFSports Run Series sem barra antes do fetch', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('<html><title>Shopping Vitória II</title></html>', { headers: { 'content-type': 'text/html' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await fetchEventPage('https://www.tfsports.com.br/run-series/shopping-vitoria-ii-2026');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://www.tfsports.com.br/run-series/shopping-vitoria-ii-2026/');
+  });
+
   it('permite 301 same-origin', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response(301, { location: '/race/' })).mockResolvedValueOnce(response(200, { 'content-type': 'text/html' }, html)));
     await expect(fetchEventPage('https://example.com/race')).resolves.toMatchObject({ finalUrl: 'https://example.com/race/' });
