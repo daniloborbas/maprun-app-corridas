@@ -7,7 +7,7 @@ import { runDiscoveryDryRun } from '@/features/discovery/dry-run';
 import { listSourcesReadyForCrawl, recordDiscoverySourceFailure, recordDiscoverySourceSuccess } from '@/features/discovery/source-repository';
 import { getResearchModelConfiguration } from '@/features/discovery/openai-research-provider';
 import { createRaceResearchProvider, ResearchProviderError } from '@/features/discovery/openai-research-provider';
-import { buildResearchQueries, type ResearchInput } from '@/features/discovery/research';
+import { researchAndEnrichCandidate, type ResearchInput } from '@/features/discovery/research';
 import { markCandidateProcessing } from '@/features/discovery/candidate-repository';
 import { processDiscoveryCandidate } from '@/features/discovery/candidate-processor';
 import type { DiscoverySource } from '@/features/discovery/types';
@@ -125,7 +125,10 @@ export async function POST(request: Request) {
       try {
         await updateResearchDiagnostic(client, diagnostic.id, { phase: 'responses_api', research_attempted: true });
         const provider = createRaceResearchProvider({ model, maxQueries: 2 });
-        const result = await provider.research({ queries: buildResearchQueries(known, 2), known, maxSources: 8 });
+        const persisted = await researchAndEnrichCandidate(candidate.id, known, provider, { maxQueries: 2, maxSources: 8, client });
+        if (persisted.status === 'skipped') throw new Error('Pesquisa não necessária para este candidato.');
+        if (!persisted.research) throw new Error('Resultado de pesquisa indisponível.');
+        const result = persisted.research;
         await updateResearchDiagnostic(client, diagnostic.id, { phase: 'structured_output' });
         await updateResearchDiagnostic(client, diagnostic.id, { phase: 'citation_parsing' });
         await updateResearchDiagnostic(client, diagnostic.id, { phase: 'source_validation' });
