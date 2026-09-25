@@ -1,3 +1,4 @@
-export const plain = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-export function normalizeBrazilianState(value: unknown) { const raw = plain(String(value ?? '').trim().toLowerCase()).replace(/\s+/g, ' '); return raw.length === 2 ? raw.toUpperCase() : raw.toUpperCase(); }
+const stateMap: Record<string, string> = { 'sao paulo': 'SP', 'minas gerais': 'MG', 'rio de janeiro': 'RJ', 'espirito santo': 'ES', parana: 'PR', bahia: 'BA', goias: 'GO', ceara: 'CE', paraiba: 'PB', pernambuco: 'PE', 'mato grosso': 'MT', 'mato grosso do sul': 'MS', 'rio grande do sul': 'RS', 'rio grande do norte': 'RN', 'santa catarina': 'SC', sergipe: 'SE', alagoas: 'AL', amazonas: 'AM', maranhao: 'MA', para: 'PA', piaui: 'PI', 'distrito federal': 'DF', acre: 'AC', amapa: 'AP', rondonia: 'RO', roraima: 'RR', tocantins: 'TO' };
+const plain = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+export function normalizeBrazilianState(value: unknown) { const raw = plain(String(value ?? '').trim().toLowerCase()).replace(/\s+/g, ' '); return raw.length === 2 ? raw.toUpperCase() : stateMap[raw] || raw.toUpperCase(); }
 export function normalizeCity(value: unknown) { return plain(String(value ?? '').trim().toLowerCase()).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); }
