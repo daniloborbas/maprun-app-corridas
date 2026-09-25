@@ -37,6 +37,17 @@ describe('discovery research', () => {
     expect(editorial.longDescription).not.toContain('25 de outubro de 2026');
     expect(editorial.longDescription).toContain('data da prova apresenta informações divergentes');
   });
+  it('never includes either conflicting critical date in editorial output', () => {
+    const raceEvent = { ...event, name: '2ª Corrida das Águas', date: '2026-10-18', city: 'Cambuquira', state: 'MG' };
+    const conflict = { ...result, facts: { date: '2026-10-25' }, fieldEvidence: { date: [{ value: '2026-10-25', source, confidence: 80 }, { value: '2026-10-18', source: { ...source, url: 'https://other.example/race' }, confidence: 70 }] }, conflicts: [{ field: 'date', values: [{ value: '2026-10-25', source }, { value: '2026-10-18', source: { ...source, url: 'https://other.example/race' } }], severity: 'high' as const }] };
+    const decision = resolveRaceFieldEvidence(raceEvent, conflict);
+    const editorial = generateResearchEditorial(raceEvent, conflict.facts, decision.fieldResolutions);
+    expect(editorial.shortDescription).not.toContain('18/10/2026');
+    expect(editorial.shortDescription).not.toContain('25/10/2026');
+    expect(editorial.longDescription).not.toContain('18/10/2026');
+    expect(editorial.longDescription).not.toContain('25/10/2026');
+    expect(decision.autoPublishEligible).toBe(false);
+  });
   it('classifies source type and trust deterministically', () => {
     expect(classifyResearchSource('https://www.portaldascorridas.com.br/event-details/x').sourceType).toBe('registration_platform');
     expect(classifyResearchSource('https://corridabrasil.com/corrida/x').sourceType).toBe('race_calendar');
