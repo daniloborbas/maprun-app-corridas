@@ -11,6 +11,7 @@ import { buildResearchQueries, type ResearchInput } from '@/features/discovery/r
 import { markCandidateProcessing } from '@/features/discovery/candidate-repository';
 import { processDiscoveryCandidate } from '@/features/discovery/candidate-processor';
 import type { DiscoverySource } from '@/features/discovery/types';
+import { createResearchDiagnostic, finishResearchDiagnostic, updateResearchDiagnostic } from '@/features/discovery/research-diagnostics';
 
 const requestSchema = z.object({
   action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run', 'dry-run-selected', 'research-diagnostic']),
@@ -110,18 +111,30 @@ export async function POST(request: Request) {
       if (!input.candidateIds || input.candidateIds.length !== 1) return NextResponse.json({ error: 'research-diagnostic exige exatamente um candidateId.' }, { status: 400 });
       const { data: candidate, error } = await client.from('discovery_candidates').select('*').eq('id', input.candidateIds[0]).maybeSingle();
       if (error || !candidate) return NextResponse.json({ error: 'Candidato inexistente.' }, { status: 404 });
+      const model = getResearchModelConfiguration();
+      const diagnostic = await createResearchDiagnostic(client, candidate.id, model);
+      if (diagnostic.duplicate) return NextResponse.json({ error: 'diagnostic_already_running', diagnosticRunId: diagnostic.id }, { status: 409 });
+      const diagnosticStarted = Date.now();
+      const persistFailure = async (values: Record<string, unknown>) => { try { await finishResearchDiagnostic(client, diagnostic.id, diagnosticStarted, { status: 'failed', research_attempted: values.research_attempted ?? false, research_succeeded: false, ...values }); } catch { /* preserve original diagnostic error */ } };
       const claimed = await markCandidateProcessing(candidate.id, client) || { ...candidate, status: 'processing' as const };
+      await updateResearchDiagnostic(client, diagnostic.id, { phase: 'request_build' });
       const extraction = await processDiscoveryCandidate(claimed, { client });
-      if (!extraction.success || !extraction.extractedEvent) return NextResponse.json({ candidateId: candidate.id, extractionStatus: extraction.errorCode || 'failed', error: extraction.errorMessage || 'Extração determinística falhou.' }, { status: 200 });
+      if (!extraction.success || !extraction.extractedEvent) { await persistFailure({ phase: 'request_build', error_type: 'extraction_error', error_message: safeError(extraction.errorMessage || 'Extração determinística falhou.') }); return NextResponse.json({ diagnosticRunId: diagnostic.id, candidateId: candidate.id, extractionStatus: extraction.errorCode || 'failed', error: extraction.errorMessage || 'Extração determinística falhou.' }, { status: 200 }); }
       const known: ResearchInput = { event: extraction.extractedEvent, sourceUrl: candidate.url };
       const started = Date.now();
       try {
-        const provider = createRaceResearchProvider();
+        await updateResearchDiagnostic(client, diagnostic.id, { phase: 'responses_api', research_attempted: true });
+        const provider = createRaceResearchProvider({ model });
         const result = await provider.research({ queries: buildResearchQueries(known, 4), known, maxSources: 8 });
-        return NextResponse.json({ candidateId: candidate.id, url: candidate.url, model: result.model || process.env.OPENAI_RESEARCH_MODEL, extractionStatus: extraction.extractionStatus, researchAttempted: true, researchSucceeded: result.status === 'completed', durationMs: Date.now() - started, result: { status: result.status, sources: result.sources.map((source) => ({ title: source.title, url: source.url, sourceType: source.sourceType })), facts: result.facts, researchConfidence: result.researchConfidence, inputTokens: result.inputTokens, outputTokens: result.outputTokens } });
+        await updateResearchDiagnostic(client, diagnostic.id, { phase: 'structured_output' });
+        await updateResearchDiagnostic(client, diagnostic.id, { phase: 'citation_parsing' });
+        await updateResearchDiagnostic(client, diagnostic.id, { phase: 'source_validation' });
+        await finishResearchDiagnostic(client, diagnostic.id, diagnosticStarted, { status: result.status === 'completed' ? 'succeeded' : 'failed', research_attempted: true, research_succeeded: result.status === 'completed', web_searches: 4, sources_count: result.sources.length, input_tokens: result.inputTokens ?? null, output_tokens: result.outputTokens ?? null, total_tokens: (result.inputTokens || 0) + (result.outputTokens || 0) || null, metadata: { extractionStatus: extraction.extractionStatus } });
+        return NextResponse.json({ diagnosticRunId: diagnostic.id, candidateId: candidate.id, url: candidate.url, model: result.model || model, extractionStatus: extraction.extractionStatus, researchAttempted: true, researchSucceeded: result.status === 'completed', durationMs: Date.now() - started, result: { status: result.status, sources: result.sources.map((source) => ({ title: source.title, url: source.url, sourceType: source.sourceType })), facts: result.facts, researchConfidence: result.researchConfidence, inputTokens: result.inputTokens, outputTokens: result.outputTokens } });
       } catch (error) {
-        if (error instanceof ResearchProviderError) return NextResponse.json({ candidateId: candidate.id, url: candidate.url, researchAttempted: true, researchSucceeded: false, error: { type: error.code, status: error.details.status || null, code: error.code, param: error.details.param || null, providerType: error.details.providerType || null, message: error.message.slice(0, 240), phase: error.details.phase || 'responses_api' } }, { status: 200 });
-        return NextResponse.json({ candidateId: candidate.id, url: candidate.url, researchAttempted: true, researchSucceeded: false, error: { type: 'provider_error', status: null, code: 'provider_error', param: null, providerType: null, message: 'Falha controlada na pesquisa web.', phase: 'responses_api' } }, { status: 200 });
+        if (error instanceof ResearchProviderError) { await persistFailure({ phase: error.details.phase || 'responses_api', research_attempted: true, error_type: error.details.providerType || error.code, error_code: error.code, error_param: error.details.param || null, error_message: error.message.slice(0, 240), http_status: error.details.status || null }); return NextResponse.json({ diagnosticRunId: diagnostic.id, candidateId: candidate.id, url: candidate.url, researchAttempted: true, researchSucceeded: false, error: { type: error.code, status: error.details.status || null, code: error.code, param: error.details.param || null, providerType: error.details.providerType || null, message: error.message.slice(0, 240), phase: error.details.phase || 'responses_api' } }, { status: 200 }); }
+        await persistFailure({ phase: 'responses_api', research_attempted: true, error_type: 'provider_error', error_code: 'provider_error', error_message: 'Falha controlada na pesquisa web.' });
+        return NextResponse.json({ diagnosticRunId: diagnostic.id, candidateId: candidate.id, url: candidate.url, researchAttempted: true, researchSucceeded: false, error: { type: 'provider_error', status: null, code: 'provider_error', param: null, providerType: null, message: 'Falha controlada na pesquisa web.', phase: 'responses_api' } }, { status: 200 });
       }
     }
     if (input.action === 'dry-run-selected') {
