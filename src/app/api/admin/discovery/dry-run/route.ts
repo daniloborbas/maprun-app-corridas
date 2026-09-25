@@ -6,7 +6,7 @@ import { discoverAndPersistFromSource } from '@/features/discovery/candidate-rep
 import { runDiscoveryDryRun } from '@/features/discovery/dry-run';
 import { listSourcesReadyForCrawl, recordDiscoverySourceFailure, recordDiscoverySourceSuccess } from '@/features/discovery/source-repository';
 import { getResearchModelConfiguration } from '@/features/discovery/openai-research-provider';
-import { createRaceResearchProvider, ResearchProviderError } from '@/features/discovery/openai-research-provider';
+import { createRaceResearchProvider, ResearchProviderError, sanitizeOpenAIError } from '@/features/discovery/openai-research-provider';
 import { researchAndEnrichCandidate, type ResearchInput } from '@/features/discovery/research';
 import { markCandidateProcessing } from '@/features/discovery/candidate-repository';
 import { processDiscoveryCandidate } from '@/features/discovery/candidate-processor';
@@ -136,8 +136,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ diagnosticRunId: diagnostic.id, candidateId: candidate.id, url: candidate.url, model: result.model || model, extractionStatus: extraction.extractionStatus, researchAttempted: true, researchSucceeded: result.status === 'completed', durationMs: Date.now() - started, result: { status: result.status, sources: result.sources.map((source) => ({ title: source.title, url: source.url, sourceType: source.sourceType })), facts: result.facts, researchConfidence: result.researchConfidence, inputTokens: result.inputTokens, outputTokens: result.outputTokens, webSearches: result.webSearches, rawSourcesCount: result.rawSourcesCount, acceptedSourcesCount: result.sources.length, rejectedSourcesCount: result.rejectedSources?.length ?? 0, rejectedSources: result.rejectedSources ?? [], responseShape: result.responseShape } });
       } catch (error) {
         if (error instanceof ResearchProviderError) { await persistFailure({ phase: error.details.phase || 'responses_api', research_attempted: true, error_type: error.details.providerType || error.code, error_code: error.code, error_param: error.details.param || null, error_message: error.message.slice(0, 240), http_status: error.details.status || null }); return NextResponse.json({ diagnosticRunId: diagnostic.id, candidateId: candidate.id, url: candidate.url, researchAttempted: true, researchSucceeded: false, error: { type: error.code, status: error.details.status || null, code: error.code, param: error.details.param || null, providerType: error.details.providerType || null, message: error.message.slice(0, 240), phase: error.details.phase || 'responses_api' } }, { status: 200 }); }
-        await persistFailure({ phase: 'responses_api', research_attempted: true, error_type: 'provider_error', error_code: 'provider_error', error_message: 'Falha controlada na pesquisa web.' });
-        return NextResponse.json({ diagnosticRunId: diagnostic.id, candidateId: candidate.id, url: candidate.url, researchAttempted: true, researchSucceeded: false, error: { type: 'provider_error', status: null, code: 'provider_error', param: null, providerType: null, message: 'Falha controlada na pesquisa web.', phase: 'responses_api' } }, { status: 200 });
+        const details = sanitizeOpenAIError(error, 'provider_error');
+        await persistFailure({ phase: 'responses_api', research_attempted: true, error_type: details.code, error_code: details.codeDetail || details.code, error_param: details.param || null, error_message: details.message, http_status: details.status || null });
+        return NextResponse.json({ diagnosticRunId: diagnostic.id, candidateId: candidate.id, url: candidate.url, researchAttempted: true, researchSucceeded: false, error: { type: details.code, status: details.status || null, code: details.codeDetail || details.code, param: details.param || null, providerType: details.type || null, message: details.message, requestId: details.requestId || null, constructor: details.constructorName || null, name: details.name || null, cause: details.cause || null, phase: 'responses_api' } }, { status: 200 });
       }
     }
     if (input.action === 'dry-run-selected') {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { extractWebSearchSources, OpenAIWebRaceResearchProvider, ResearchProviderError } from '@/features/discovery/openai-research-provider';
+import { extractWebSearchSources, OpenAIWebRaceResearchProvider, ResearchProviderError, createRaceResearchRequest, compareOpenAIResearchRequests, sanitizeOpenAIError } from '@/features/discovery/openai-research-provider';
 import type { ResearchInput } from '@/features/discovery/research';
 
 const known: ResearchInput = { sourceUrl: 'https://example.com/race', event: { name: 'Corrida Teste', date: '2026-10-10', startTime: null, city: 'Itajubá', state: 'MG', venue: null, address: null, distances: [], price: null, organizerName: null, registrationUrl: null, coverImageUrl: null } };
@@ -47,5 +47,25 @@ describe('OpenAI web research provider', () => {
     const timeout = { responses: { create: vi.fn().mockRejectedValue({ status: 429 }) } };
     await expect(new OpenAIWebRaceResearchProvider({ client: timeout, model: 'research-test' }).research({ queries: ['race'], known, maxSources: 8 })).rejects.toMatchObject({ code: 'rate_limit' });
     expect(new ResearchProviderError('timeout', 'x').code).toBe('timeout');
+  });
+  it('preserves the original OpenAI error metadata through the provider', async () => {
+    const apiError = Object.assign(new Error('Invalid request'), { name: 'BadRequestError', status: 400, type: 'invalid_request_error', code: 'schema_error', param: 'text.format.schema', request_id: 'req_test' });
+    const client = { responses: { create: vi.fn().mockRejectedValue(apiError) } };
+    await expect(new OpenAIWebRaceResearchProvider({ client, model: 'research-test' }).research({ queries: ['race'], known, maxSources: 8 })).rejects.toMatchObject({ code: 'invalid_request', details: { status: 400, providerType: 'invalid_request_error', param: 'text.format.schema', requestId: 'req_test', errorName: 'BadRequestError' } });
+  });
+  it('preserves network cause metadata', () => {
+    const error = Object.assign(new Error('fetch failed'), { cause: Object.assign(new Error('connection reset'), { code: 'ECONNRESET' }) });
+    expect(sanitizeOpenAIError(error)).toMatchObject({ code: 'network_error', cause: { code: 'ECONNRESET' } });
+  });
+  it('compares smoke and race requests without exposing secrets', () => {
+    const smoke = createRaceResearchRequest({ model: 'gpt-test', input: 'small' });
+    const race = createRaceResearchRequest({ model: 'gpt-test', instructions: 'race context', input: 'query one\nquery two' });
+    const comparison = compareOpenAIResearchRequests(smoke, race, 45000);
+    expect(comparison.smoke.schemaHash).toBe(comparison.race.schemaHash);
+    expect(comparison.smoke.tools).toEqual(comparison.race.tools);
+    expect(comparison.smoke.toolChoice).toBe(comparison.race.toolChoice);
+    expect(comparison.smoke.include).toEqual(comparison.race.include);
+    expect(comparison.differences).toContain('inputChars');
+    expect(JSON.stringify(comparison)).not.toContain('OPENAI_API_KEY');
   });
 });

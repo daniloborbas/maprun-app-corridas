@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { requireAdmin } from '@/lib/supabase/server';
-import { getResearchModelConfiguration, raceResearchOutputSchema, raceResearchResponseSchema, normalizeResearchPayload, extractWebSearchSources, sanitizeOpenAIError } from '@/features/discovery/openai-research-provider';
+import { getResearchModelConfiguration, raceResearchResponseSchema, normalizeResearchPayload, extractWebSearchSources, sanitizeOpenAIError, createRaceResearchRequest } from '@/features/discovery/openai-research-provider';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -13,7 +13,7 @@ export async function POST() {
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ success: false, error: { phase: 'configuration', code: 'missing_api_key', message: 'Configuração OpenAI indisponível.' } }, { status: 503 });
   const started = Date.now();
   try {
-    const response = await new OpenAI({ apiKey: process.env.OPENAI_API_KEY }).responses.create({ model, reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'low' }], tool_choice: 'required', include: ['web_search_call.action.sources'], input: 'Pesquise o site oficial da OpenAI e preencha o schema solicitado apenas com informações encontradas nas fontes. Quando um campo não se aplicar, use null ou array vazio conforme o schema.', text: { format: { type: 'json_schema', name: 'maprun_race_research', strict: true, schema: raceResearchOutputSchema } } });
+    const response = await new OpenAI({ apiKey: process.env.OPENAI_API_KEY }).responses.create(createRaceResearchRequest({ model, input: 'Pesquise o site oficial da OpenAI e preencha o schema solicitado apenas com informações encontradas nas fontes. Quando um campo não se aplicar, use null ou array vazio conforme o schema.' }) as never);
     const extracted = extractWebSearchSources(response);
     const rawText = (response as { output_text?: unknown }).output_text;
     let structuredOutputParsed = false;

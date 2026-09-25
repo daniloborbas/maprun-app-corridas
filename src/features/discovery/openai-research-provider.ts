@@ -1,5 +1,6 @@
 import 'server-only';
 import OpenAI from 'openai';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { buildResearchQueries, type RaceResearchProvider, type RaceResearchResult, type ResearchInput, type ResearchSource, type ResearchSourceType } from './research';
 
@@ -8,6 +9,21 @@ export type ResearchErrorPhase = 'configuration'|'request_build'|'responses_api'
 export class ResearchProviderError extends Error { constructor(public readonly code: ResearchProviderErrorCode, message: string, public readonly details: { status?: number; providerType?: string; param?: string; phase?: ResearchErrorPhase; requestId?: string; constructorName?: string; errorName?: string; cause?: { name?: string; message?: string; code?: string } } = {}) { super(message); } }
 export interface ResearchResponsesClient { responses: { create: (input: Record<string, unknown>, options?: { signal?: AbortSignal }) => Promise<unknown> } }
 export interface OpenAIResearchProviderOptions { client?: ResearchResponsesClient; model?: string; timeoutMs?: number; maxSources?: number; maxQueries?: number; }
+export interface ResearchRequestInput { model: string; instructions?: string; input: string; maxQueries?: number; timeoutMs?: number; }
+const stableJson = (value: unknown): string => { if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`; if (value && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`).join(',')}}`; return JSON.stringify(value); };
+export const schemaHash = (schema: unknown) => createHash('sha256').update(stableJson(schema)).digest('hex');
+export function createRaceResearchRequest(input: ResearchRequestInput) {
+  return { model: input.model, reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'low' }], tool_choice: 'required', include: ['web_search_call.action.sources'], instructions: input.instructions, input: input.input, text: { format: { type: 'json_schema', name: 'maprun_race_research', strict: true, schema: raceResearchOutputSchema } } };
+}
+export function describeResearchRequest(request: Record<string, unknown>, timeoutMs?: number) {
+  const text = request.text as { format?: { schema?: unknown; name?: string } } | undefined;
+  return { model: request.model, reasoning: request.reasoning, tools: request.tools, toolChoice: request.tool_choice, include: request.include, schemaName: text?.format?.name || null, schemaHash: text?.format?.schema ? schemaHash(text.format.schema) : null, inputItems: Array.isArray(request.input) ? request.input.length : 1, inputChars: typeof request.input === 'string' ? request.input.length : JSON.stringify(request.input || '').length, promptChars: typeof request.instructions === 'string' ? request.instructions.length : 0, extraKeys: Object.keys(request).filter((key) => !['model','reasoning','tools','tool_choice','include','text','input','instructions'].includes(key)).sort(), timeoutMs: timeoutMs ?? null, usesAbortSignal: true };
+}
+export function compareOpenAIResearchRequests(smokeRequest: Record<string, unknown>, raceRequest: Record<string, unknown>, timeoutMs?: number) {
+  const smoke = describeResearchRequest(smokeRequest, timeoutMs); const race = describeResearchRequest(raceRequest, timeoutMs); const differences: string[] = [];
+  for (const key of ['model','reasoning','tools','toolChoice','include','schemaName','schemaHash','inputItems','inputChars','promptChars','timeoutMs'] as const) if (stableJson(smoke[key]) !== stableJson(race[key])) differences.push(key);
+  return { smoke, race, differences };
+}
 
 export function getResearchModelConfiguration() {
   const model = process.env.OPENAI_RESEARCH_MODEL?.trim();
@@ -119,7 +135,7 @@ export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const response = await this.client.responses.create({ model: this.model, reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'low' }], tool_choice: 'required', include: ['web_search_call.action.sources'], instructions: researchInstructions(known, queries), input: queries.join('\n'), text: { format: { type: 'json_schema', name: 'maprun_race_research', strict: true, schema: raceResearchOutputSchema } } }, { signal: controller.signal });
+      const response = await this.client.responses.create(createRaceResearchRequest({ model: this.model, instructions: researchInstructions(known, queries), input: queries.join('\n') }), { signal: controller.signal });
       const rawText = (response as { output_text?: unknown }).output_text;
       if (typeof rawText !== 'string' || !rawText.trim()) throw new ResearchProviderError('invalid_response', 'A pesquisa não retornou JSON estruturado.', { phase: 'structured_output' });
       let parsed: unknown;
@@ -151,7 +167,7 @@ export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const response = await this.client.responses.create({ model: this.model, reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'low' }], tool_choice: 'required', include: ['web_search_call.action.sources'], instructions: researchInstructions(known, queries), input: queries.join('\n'), text: { format: { type: 'json_schema', name: 'maprun_race_research', strict: true, schema: raceResearchOutputSchema } } }, { signal: controller.signal });
+      const response = await this.client.responses.create(createRaceResearchRequest({ model: this.model, instructions: researchInstructions(known, queries), input: queries.join('\n') }), { signal: controller.signal });
       const rawText = (response as { output_text?: unknown }).output_text;
       if (typeof rawText !== 'string' || !rawText.trim()) throw new ResearchProviderError('invalid_response', 'A pesquisa não retornou JSON estruturado.');
       let parsed: unknown; try { parsed = JSON.parse(rawText); } catch { throw new ResearchProviderError('invalid_response', 'A pesquisa retornou JSON inválido.'); }
@@ -167,7 +183,7 @@ export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
       return { sources, facts, fieldEvidence, conflicts: validated.data.conflicts.map((conflict) => ({ ...conflict, values: conflict.values.map((value) => ({ value, source: sources[0] })).filter((item) => item.source) })), missingFields: validated.data.missingFields, researchConfidence: reliable ? validated.data.confidence : 0, durationMs: Date.now() - started, status: reliable ? 'completed' : extracted.rawSourcesCount ? 'no_matching_sources' : 'no_sources', shortDescription: '', longDescription: '', model: this.model, inputTokens: (response as { usage?: { input_tokens?: number } }).usage?.input_tokens, outputTokens: (response as { usage?: { output_tokens?: number } }).usage?.output_tokens, rawSourcesCount: extracted.rawSourcesCount, rejectedSources: extracted.rawSourcesCount && !sources.length ? extracted.sources.map((source) => ({ url: source.url, reason: 'source_validation', score: 0 })) : [], webSearches: extracted.webSearches, responseShape: extracted.responseShape };
     } catch (error) {
       if (error instanceof ResearchProviderError) throw error;
-      if (controller.signal.aborted) throw new ResearchProviderError('timeout', 'Tempo limite da pesquisa excedido.');
+      if (controller.signal.aborted) throw new ResearchProviderError('timeout', 'Tempo limite da pesquisa excedido.', { phase: 'responses_api', errorName: 'AbortError', constructorName: 'DOMException' });
       const details = sanitizeOpenAIError(error, 'web_search_error');
       throw new ResearchProviderError(details.code, details.message, { status: details.status, providerType: details.type, param: details.param, phase: 'responses_api', requestId: details.requestId, constructorName: details.constructorName, errorName: details.name, cause: details.cause });
     } finally { clearTimeout(timer); }
