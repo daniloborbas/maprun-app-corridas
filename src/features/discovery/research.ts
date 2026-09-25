@@ -16,6 +16,30 @@ export interface SourceMatch { source: ResearchSource; score: number; classifica
 export interface FieldResolution { status: FieldResolutionStatus; chosenValue: unknown; confidence: number; supportingSources: ResearchSource[]; conflictingSources: ResearchSource[]; criticalConflict: boolean; }
 export interface ResearchDecision { resolvedEvent: ExtractedRaceEvent; fieldResolutions: Record<string, FieldResolution>; replacements: { field: string; oldValue: unknown; newValue: unknown; resolutionReason: string; supportingSources: ResearchSource[] }[]; unresolvedConflicts: ResearchConflict[]; factualConfidence: number; contentQualityScore: number; autoPublishEligible: boolean; rejectionReasons: string[]; }
 
+export type PersistenceErrorDetails = { code?: string; message: string; details?: string; hint?: string; status?: number; constraint?: string; column?: string; table?: string };
+export class ResearchPersistenceError extends Error {
+  constructor(message: string, public readonly details: PersistenceErrorDetails) {
+    super(message);
+    this.name = 'ResearchPersistenceError';
+  }
+}
+
+export function sanitizePersistenceError(error: unknown): PersistenceErrorDetails {
+  const value = (error && typeof error === 'object' ? error : {}) as Record<string, unknown>;
+  const text = (input: unknown) => typeof input === 'string' ? input.replace(/sk-[A-Za-z0-9_-]+/g, '[redacted]').replace(/Bearer\s+\S+/ig, 'Bearer [redacted]').slice(0, 500) : undefined;
+  const message = text(value.message) || 'Falha ao persistir o enrichment.';
+  return {
+    message,
+    code: typeof value.code === 'string' ? value.code : undefined,
+    details: text(value.details),
+    hint: text(value.hint),
+    status: typeof value.status === 'number' ? value.status : undefined,
+    constraint: typeof value.constraint === 'string' ? value.constraint : undefined,
+    column: typeof value.column === 'string' ? value.column : undefined,
+    table: typeof value.table === 'string' ? value.table : undefined,
+  };
+}
+
 const importantFields = ['startTime', 'venue', 'address', 'distances', 'price', 'registrationUrl', 'organizerName'];
 const editorialFields = ['kit', 'packetPickup', 'course', 'categories', 'awards', 'regulation', 'notes'];
 export function shouldResearchEvent(event: ExtractedRaceEvent, metadata: Record<string, unknown> = {}) {
@@ -109,7 +133,7 @@ export function auditGeneratedDescription(description: string, event: ExtractedR
 }
 export const researchOutputSchema = z.object({ facts: z.record(z.string(), z.unknown()), sources: z.array(z.object({ url: z.string(), title: z.string(), sourceType: z.string(), trustLevel: z.enum(['A','B','C']), retrievedAt: z.string() })), fieldEvidence: z.record(z.string(), z.array(z.object({ value: z.string(), confidence: z.number().min(0).max(100), source: z.object({ url: z.string(), title: z.string(), sourceType: z.string(), trustLevel: z.enum(['A','B','C']), retrievedAt: z.string() }) }))), conflicts: z.array(z.object({ field: z.string(), values: z.array(z.object({ value: z.string(), source: z.any() })), severity: z.enum(['low','medium','high']) })), missingFields: z.array(z.string()), shortDescription: z.string(), longDescription: z.string(), confidence: z.number().min(0).max(100) }).strict();
 
-export async function researchAndEnrichCandidate(candidateId: string, input: ResearchInput, provider: RaceResearchProvider | undefined = undefined, options: { maxQueries?: number; maxSources?: number; client?: ReturnType<typeof adminDb> } = {}) {
+export async function researchAndEnrichCandidate(candidateId: string, input: ResearchInput, provider: RaceResearchProvider | undefined = undefined, options: { maxQueries?: number; maxSources?: number; client?: ReturnType<typeof adminDb>; onPersistenceStart?: () => Promise<void> } = {}) {
   const started = Date.now();
   if (!shouldResearchEvent(input.event)) return { status: 'skipped' as const, reason: 'research_not_needed', durationMs: Date.now() - started };
   const activeProvider = provider || (await import('./openai-research-provider')).createRaceResearchProvider({ maxQueries: options.maxQueries, maxSources: options.maxSources });
@@ -121,7 +145,14 @@ export async function researchAndEnrichCandidate(candidateId: string, input: Res
   const client = options.client || adminDb();
   const metrics = researchSourceMetrics(result);
   const rejectedSources = result.rejectedSources ?? [];
-  const { error } = result.status === 'completed' ? await client.from('discovery_candidate_enrichments').upsert({ candidate_id: candidateId, base_event: input.event, enriched_event: merged, research_sources: { accepted: result.sources, rejected: rejectedSources }, field_evidence: result.fieldEvidence, conflicts: result.conflicts, missing_fields: result.missingFields, research_confidence: enriched.researchConfidence, content_quality_score: decision.contentQualityScore, short_description: enriched.shortDescription, long_description: enriched.longDescription, model: result.model || null, input_tokens: result.inputTokens || null, output_tokens: result.outputTokens || null, total_tokens: (result.inputTokens || 0) + (result.outputTokens || 0) || null, field_resolutions: decision.fieldResolutions, replacements: decision.replacements, unresolved_conflicts: decision.unresolvedConflicts, factual_confidence: decision.factualConfidence, auto_publish_eligible: decision.autoPublishEligible, rejection_reasons: decision.rejectionReasons, research_metadata: { ...metrics, webSearches: result.webSearches ?? 0, responseShape: result.responseShape ?? {} } }, { onConflict: 'candidate_id' }) : { error: null };
-  if (error) throw new Error('Não foi possível persistir o enrichment de pesquisa.');
+  const payload = { candidate_id: candidateId, base_event: input.event, enriched_event: merged, research_sources: { accepted: result.sources, rejected: rejectedSources }, field_evidence: result.fieldEvidence, conflicts: result.conflicts, missing_fields: result.missingFields, research_confidence: enriched.researchConfidence, content_quality_score: decision.contentQualityScore, short_description: enriched.shortDescription, long_description: enriched.longDescription, model: result.model || null, input_tokens: result.inputTokens ?? null, output_tokens: result.outputTokens ?? null, total_tokens: (result.inputTokens || 0) + (result.outputTokens || 0) || null, field_resolutions: decision.fieldResolutions, replacements: decision.replacements, unresolved_conflicts: decision.unresolvedConflicts, factual_confidence: decision.factualConfidence, auto_publish_eligible: decision.autoPublishEligible, rejection_reasons: decision.rejectionReasons, research_metadata: { ...metrics, webSearches: result.webSearches ?? 0, responseShape: result.responseShape ?? {} } };
+  if (result.status === 'completed') {
+    await options.onPersistenceStart?.();
+    const { error } = await client.from('discovery_candidate_enrichments').upsert(payload, { onConflict: 'candidate_id' });
+    if (error) {
+      const details = sanitizePersistenceError(error);
+      throw new ResearchPersistenceError('Não foi possível persistir o enrichment de pesquisa.', details);
+    }
+  }
   return { status: result.status, candidateId, enrichedEvent: merged, research: enriched, durationMs: Date.now() - started };
 }

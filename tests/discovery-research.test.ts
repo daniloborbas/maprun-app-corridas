@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { buildResearchQueries, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
+import { buildResearchQueries, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 
 const event: ExtractedRaceEvent = { name: 'Corrida Teste', date: '2026-10-10', startTime: null, city: 'Itajubá', state: 'MG', venue: null, address: null, distances: [], price: null, organizerName: null, registrationUrl: null, coverImageUrl: null };
@@ -48,5 +48,14 @@ describe('discovery research', () => {
     expect(editorial.shortDescription).toContain('Corrida Teste');
     expect(editorial.longDescription).toContain('07:00');
     expect(editorial.longDescription).not.toContain('kit');
+  });
+  it('preserves sanitized database metadata and reports persistence failures', async () => {
+    const upsert = vi.fn().mockResolvedValue({ error: { code: '42703', message: 'column missing', details: 'schema mismatch', hint: 'check migration', column: 'field_resolutions', table: 'discovery_candidate_enrichments' } });
+    const client = { from: vi.fn(() => ({ upsert })) } as never;
+    const provider = { research: vi.fn().mockResolvedValue(result) };
+    await expect(researchAndEnrichCandidate('00000000-0000-0000-0000-000000000001', input, provider, { client })).rejects.toMatchObject({ name: 'ResearchPersistenceError', details: { code: '42703', column: 'field_resolutions', table: 'discovery_candidate_enrichments' } });
+    expect(upsert).toHaveBeenCalledWith(expect.not.objectContaining({ field_resolutions: undefined }), { onConflict: 'candidate_id' });
+    expect(sanitizePersistenceError({ code: '23505', message: 'duplicate', details: 'unique violation', hint: 'candidate_id' })).toMatchObject({ code: '23505', details: 'unique violation', hint: 'candidate_id' });
+    expect(new ResearchPersistenceError('x', { message: 'x', code: '23505' }).details.code).toBe('23505');
   });
 });
