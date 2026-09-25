@@ -7,7 +7,7 @@ function isIndividualUrl(candidate: AuditCandidate) {
  try {
   const path = new URL(candidate.url).pathname;
   if (candidate.sourceName.startsWith('Bora Correr')) return /\/corrida\//.test(path);
-  if (candidate.sourceName.startsWith('Corrida1')) return /^\/corridas\/[^/]+\/[^/]+\/\d{4}\/.test(path);
+  if (candidate.sourceName.startsWith('Corrida1')) return /^\/corridas\/[^/]+\/[^/]+\/\d{4}\//.test(path);
   if (candidate.sourceName === 'Portal das Corridas') return /\/event-details\/[^/]+/.test(path);
   if (candidate.sourceName.startsWith('VamuCorrer')) return /\/corrida\/[^/]+/.test(path) && !/\/corridas\//.test(path);
   return true;
