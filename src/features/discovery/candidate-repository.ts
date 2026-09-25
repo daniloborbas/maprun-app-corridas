@@ -37,14 +37,21 @@ export async function listCandidatesReadyForProcessing(limit: number, now = new 
   if (error) throw new Error('Não foi possível carregar candidatos prontos.');
   return (data || []) as DiscoveryCandidate[];
 }
-export async function listCandidatesForDryRun(options: { candidateIds?: string[]; sourceIds?: string[]; limit: number }, client?: SupabaseClient): Promise<DiscoveryCandidate[]> {
+export async function listCandidatesForDryRun(options: { candidateIds?: string[]; sourceIds?: string[]; limit: number; allowReprocessExtracted?: boolean }, client?: SupabaseClient): Promise<DiscoveryCandidate[]> {
   const connection = await connectionOrThrow(client);
-  let query = connection.from('discovery_candidates').select('*').in('status', ['discovered', 'failed']).order('first_discovered_at').order('id').limit(Math.max(0, Math.floor(options.limit)));
+  let query = connection.from('discovery_candidates').select('*').in('status', options.allowReprocessExtracted ? ['discovered', 'failed', 'extracted'] : ['discovered', 'failed']).order('first_discovered_at').order('id').limit(Math.max(0, Math.floor(options.limit)));
   if (options.candidateIds?.length) query = query.in('id', options.candidateIds);
   if (options.sourceIds?.length) query = query.in('source_id', options.sourceIds);
   const { data, error } = await query;
   if (error) throw new Error('Não foi possível carregar candidatos para o dry run.');
   return (data || []) as DiscoveryCandidate[];
+}
+export async function claimCandidateForAdminReprocess(id: string, client?: SupabaseClient): Promise<DiscoveryCandidate | null> {
+  const connection = await connectionOrThrow(client);
+  const now = new Date();
+  const { data, error } = await connection.from('discovery_candidates').update({ status: 'processing', last_processed_at: now.toISOString(), processing_started_at: now.toISOString(), processing_lease_expires_at: new Date(now.getTime() + 5 * 60_000).toISOString() }).eq('id', id).eq('status', 'extracted').select('*').maybeSingle();
+  if (error) throw new Error('Não foi possível reservar candidato extraído.');
+  return (data || null) as DiscoveryCandidate | null;
 }
 
 export async function markCandidateProcessing(id: string, client?: SupabaseClient): Promise<DiscoveryCandidate | null> {

@@ -1,14 +1,14 @@
 import 'server-only';
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 import { contentQualityScore, researchAndEnrichCandidate, shouldResearchEvent, type RaceResearchProvider, type ResearchInput } from './research';
-import { listCandidatesForDryRun, markCandidateProcessing } from './candidate-repository';
+import { claimCandidateForAdminReprocess, listCandidatesForDryRun, markCandidateProcessing } from './candidate-repository';
 import { processDiscoveryCandidate, type CandidateProcessorDependencies } from './candidate-processor';
 import type { DiscoveryCandidate } from './candidate-types';
 
 export type EligibilityRejectionReason = 'missing_name'|'missing_date'|'past_event'|'missing_city'|'missing_state'|'missing_distance'|'critical_conflict'|'low_research_confidence'|'low_content_quality'|'source_identity_uncertain'|'research_failed'|'research_skipped_budget';
 export interface AutoPublishEligibility { eligible: boolean; rejectionReasons: EligibilityRejectionReason[]; }
 export interface DiscoveryDryRunItem { candidateId: string; sourceId: string; url: string; extractionStatus?: string; researchExecuted: boolean; researchStatus?: string; deterministicFields: ExtractedRaceEvent|null; enrichedFields: ExtractedRaceEvent|null; missingFields: string[]; conflicts: unknown[]; researchConfidence: number|null; contentQualityScore: number; shortDescription: string; longDescription: string; sourcesCount: number; sourceTypes: string[]; durationMs: number; estimatedAutoPublishEligibility: boolean; rejectionReasons: EligibilityRejectionReason[]; }
-export interface DiscoveryDryRunOptions extends CandidateProcessorDependencies { sourceIds?: string[]; candidateIds?: string[]; limit?: number; enableResearch?: boolean; researchLimit?: number; concurrency?: number; researchProvider?: RaceResearchProvider; }
+export interface DiscoveryDryRunOptions extends CandidateProcessorDependencies { sourceIds?: string[]; candidateIds?: string[]; limit?: number; enableResearch?: boolean; researchLimit?: number; concurrency?: number; researchProvider?: RaceResearchProvider; allowReprocessExtracted?: boolean; }
 export const DRY_RUN_DEFAULTS = { limit: 10, researchLimit: 5, concurrency: 2, minResearchConfidence: 80, minContentQualityScore: 70 } as const;
 
 export function evaluateAutoPublishEligibility(event: ExtractedRaceEvent, options: { now?: Date; researchConfidence?: number|null; contentQualityScore?: number; conflicts?: { severity?: string }[]; researchRequired?: boolean; researchFailed?: boolean } = {}): AutoPublishEligibility {
@@ -33,9 +33,9 @@ export async function runDiscoveryDryRun(options: DiscoveryDryRunOptions = {}) {
   const limit = options.limit ?? DRY_RUN_DEFAULTS.limit;
   const researchLimit = options.researchLimit ?? DRY_RUN_DEFAULTS.researchLimit;
   const concurrency = Math.max(1, options.concurrency ?? DRY_RUN_DEFAULTS.concurrency);
-  const candidates = await listCandidatesForDryRun({ candidateIds: options.candidateIds, sourceIds: options.sourceIds, limit }, options.client);
+  const candidates = await listCandidatesForDryRun({ candidateIds: options.candidateIds, sourceIds: options.sourceIds, limit, allowReprocessExtracted: options.allowReprocessExtracted }, options.client);
   const claimed: DiscoveryCandidate[] = [];
-  for (const candidate of candidates) { const result = await markCandidateProcessing(candidate.id, options.client); if (result) claimed.push(result); }
+  for (const candidate of candidates) { const result = candidate.status === 'extracted' && options.allowReprocessExtracted ? await claimCandidateForAdminReprocess(candidate.id, options.client) : await markCandidateProcessing(candidate.id, options.client); if (result) claimed.push(result); }
   const items: DiscoveryDryRunItem[] = [];
   let cursor = 0;
   let researchUsed = 0;
