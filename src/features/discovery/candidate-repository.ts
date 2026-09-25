@@ -71,6 +71,13 @@ export async function recoverExpiredProcessingCandidates(limit = 50, client?: Su
   if (error) throw new Error('Não foi possível recuperar candidatos travados.');
   return (data || []) as DiscoveryCandidate[];
 }
+export async function recoverExpiredProcessingCandidatesByIds(ids: string[], client?: SupabaseClient): Promise<DiscoveryCandidate[]> {
+  if (!ids.length) return [];
+  const connection = await connectionOrThrow(client);
+  const { data, error } = await connection.from('discovery_candidates').update({ status: 'discovered', processing_started_at: null, processing_lease_expires_at: null, next_process_at: null, updated_at: new Date().toISOString(), last_error: 'Lease expirado recuperado antes do dry-run seletivo.' }).in('id', ids).eq('status', 'processing').lt('processing_lease_expires_at', new Date().toISOString()).select('*');
+  if (error) throw new Error('Não foi possível recuperar leases expirados dos candidatos selecionados.');
+  return (data || []) as DiscoveryCandidate[];
+}
 
 export async function discoverAndPersistFromSource(source: DiscoverySource, context: DiscoveryProviderContext = {}, client?: SupabaseClient) {
   const urls = await discoverUrlsFromSource(source, context);

@@ -8,7 +8,7 @@ import { listSourcesReadyForCrawl, recordDiscoverySourceFailure, recordDiscovery
 import { getResearchModelConfiguration } from '@/features/discovery/openai-research-provider';
 import { createRaceResearchProvider, ResearchProviderError, sanitizeOpenAIError } from '@/features/discovery/openai-research-provider';
 import { researchAndEnrichCandidate, ResearchPersistenceError, type ResearchInput } from '@/features/discovery/research';
-import { markCandidateProcessing } from '@/features/discovery/candidate-repository';
+import { markCandidateProcessing, recoverExpiredProcessingCandidatesByIds } from '@/features/discovery/candidate-repository';
 import { processDiscoveryCandidate } from '@/features/discovery/candidate-processor';
 import type { DiscoverySource } from '@/features/discovery/types';
 import { createResearchDiagnostic, finishResearchDiagnostic, updateResearchDiagnostic } from '@/features/discovery/research-diagnostics';
@@ -151,6 +151,7 @@ export async function POST(request: Request) {
       const found = new Set((existing || []).map((row) => String(row.id)));
       const missing = candidateIds.filter((id) => !found.has(id));
       if (missing.length) return NextResponse.json({ error: `Candidatos inexistentes: ${missing.join(', ')}` }, { status: 400 });
+      await recoverExpiredProcessingCandidatesByIds(candidateIds, client);
       const report = await runDiscoveryDryRun({ client, candidateIds, limit: candidateIds.length, enableResearch: input.enableResearch !== false, researchLimit: input.researchLimit ?? 10, concurrency: input.concurrency ?? 2 });
       return NextResponse.json({ report });
     }
