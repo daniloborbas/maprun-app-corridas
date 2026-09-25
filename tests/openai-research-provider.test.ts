@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { OpenAIWebRaceResearchProvider, ResearchProviderError } from '@/features/discovery/openai-research-provider';
+import { extractWebSearchSources, OpenAIWebRaceResearchProvider, ResearchProviderError } from '@/features/discovery/openai-research-provider';
 import type { ResearchInput } from '@/features/discovery/research';
 
 const known: ResearchInput = { sourceUrl: 'https://example.com/race', event: { name: 'Corrida Teste', date: '2026-10-10', startTime: null, city: 'Itajubá', state: 'MG', venue: null, address: null, distances: [], price: null, organizerName: null, registrationUrl: null, coverImageUrl: null } };
@@ -8,10 +8,22 @@ function fakeClient(payload: unknown) { const create = vi.fn().mockResolvedValue
 const output = { output_text: JSON.stringify({ facts: { startTime: '07:00' }, evidence: { startTime: [{ value: '07:00', sourceUrl: 'https://official.example/race', confidence: 95 }] }, conflicts: [], missingFields: ['price'], confidence: 90 }), output: [{ content: [{ annotations: [{ type: 'url_citation', url: 'https://official.example/race', title: 'Official race' }] }] }], usage: { input_tokens: 10, output_tokens: 20 } };
 
 describe('OpenAI web research provider', () => {
+  it('extracts and deduplicates action sources and url citations', () => {
+    const extracted = extractWebSearchSources({ output: [
+      { type: 'web_search_call', action: { type: 'search', sources: [{ url: 'https://official.example/race#section', title: 'Official' }] } },
+      { type: 'message', content: [{ annotations: [{ type: 'url_citation', url: 'https://official.example/race', title: 'Official' }] }] },
+    ] });
+    expect(extracted.sources).toHaveLength(1);
+    expect(extracted.webSearches).toBe(1);
+  });
+  it('does not accept URLs that only appear in structured JSON', () => {
+    expect(extractWebSearchSources({ output_text: 'https://invented.example' }).sources).toEqual([]);
+  });
   it('requires web_search and captures only returned citations', async () => {
     const { client, create } = fakeClient(output);
     const result = await new OpenAIWebRaceResearchProvider({ client, model: 'research-test' }).research({ queries: ['race'], known, maxSources: 8 });
     expect(create.mock.calls[0][0].tools).toEqual([{ type: 'web_search', search_context_size: 'low' }]);
+    expect(create.mock.calls[0][0].include).toEqual(['web_search_call.action.sources']);
     expect(create.mock.calls[0][0].reasoning).toEqual({ effort: 'low' });
     expect(create.mock.calls[0][0].tool_choice).toBe('required');
     expect(result.sources.map((source) => source.url)).toEqual(['https://official.example/race']);
