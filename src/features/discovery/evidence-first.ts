@@ -83,3 +83,11 @@ export async function resolveRaceEvidence(client: EvidenceResolverClient, reques
 }
 export function isEvidenceFirstResearchEnabled(env: Partial<NodeJS.ProcessEnv> = process.env): boolean { return env.EVIDENCE_FIRST_RESEARCH_ENABLED === 'true'; }
 export function aggregateResearchTokens(rows: Array<{ inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null }>) { const inputTokens = rows.reduce((sum, row) => sum + (row.inputTokens || 0), 0); const outputTokens = rows.reduce((sum, row) => sum + (row.outputTokens || 0), 0); return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens }; }
+
+export async function collectEvidenceFirstDocuments(input: ResearchInput & { knownUrls?: string[] }, source: DiscoverySource, options: { fetcher?: RaceEvidenceFetcher; context?: DiscoveryProviderContext } = {}) {
+  const urls = await createKnownUrlDiscoveryProvider().discover(input);
+  const fetcher = options.fetcher || createSafeEvidenceFetcher(input, source, options.context);
+  const fetched = await Promise.all(urls.map((url) => fetcher.fetch(url)));
+  const documents = selectEvidenceDocuments(fetched.flatMap((item) => item.document ? [item.document] : []));
+  return { urls, documents, errors: fetched.flatMap((item) => item.error ? [item.error] : []) };
+}
