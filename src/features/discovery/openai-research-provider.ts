@@ -14,18 +14,39 @@ export function getResearchModelConfiguration() {
   if (!model) throw new ResearchProviderError('provider_error', 'OPENAI_RESEARCH_MODEL não configurado.');
   return model;
 }
+const researchFields = ['name', 'date', 'startTime', 'city', 'state', 'venue', 'address', 'distances', 'price', 'registrationUrl', 'organizerName', 'kit', 'packetPickup', 'course', 'categories', 'awards', 'regulation', 'notes'] as const;
+const fieldProperties = Object.fromEntries(researchFields.map((field) => [field, { type: ['string', 'null'] as const }])) as Record<string, { type: readonly ['string', 'null'] }>;
+const evidenceItemSchema = { type: 'object', additionalProperties: false, properties: { value: { type: 'string' }, sourceUrl: { type: 'string' }, confidence: { type: 'number' } }, required: ['value', 'sourceUrl', 'confidence'] } as const;
 const outputSchema = {
   type: 'object', additionalProperties: false,
   properties: {
-    facts: { type: 'object', additionalProperties: { type: 'string' } },
-    evidence: { type: 'object', additionalProperties: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { value: { type: 'string' }, sourceUrl: { type: 'string' }, confidence: { type: 'number' } }, required: ['value', 'sourceUrl', 'confidence'] } } },
+    facts: { type: 'object', additionalProperties: false, properties: fieldProperties, required: researchFields },
+    evidence: { type: 'object', additionalProperties: false, properties: Object.fromEntries(researchFields.map((field) => [field, { type: 'array', items: evidenceItemSchema }])), required: researchFields },
     conflicts: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { field: { type: 'string' }, values: { type: 'array', items: { type: 'string' } }, severity: { type: 'string', enum: ['low', 'medium', 'high'] } }, required: ['field', 'values', 'severity'] } },
     missingFields: { type: 'array', items: { type: 'string' } },
     confidence: { type: 'number', minimum: 0, maximum: 100 },
   },
   required: ['facts', 'evidence', 'conflicts', 'missingFields', 'confidence'],
 } as const;
-const responseSchema = z.object({ facts: z.record(z.string(), z.string()), evidence: z.record(z.string(), z.array(z.object({ value: z.string(), sourceUrl: z.string(), confidence: z.number() }))), conflicts: z.array(z.object({ field: z.string(), values: z.array(z.string()), severity: z.enum(['low', 'medium', 'high']) })), missingFields: z.array(z.string()), confidence: z.number().min(0).max(100) }).strict();
+const responseSchema = z.object({
+  facts: z.object(Object.fromEntries(researchFields.map((field) => [field, z.string().nullable()]))).strict(),
+  evidence: z.object(Object.fromEntries(researchFields.map((field) => [field, z.array(z.object({ value: z.string(), sourceUrl: z.string(), confidence: z.number() }))]))).strict(),
+  conflicts: z.array(z.object({ field: z.string(), values: z.array(z.string()), severity: z.enum(['low', 'medium', 'high']) })),
+  missingFields: z.array(z.string()),
+  confidence: z.number().min(0).max(100),
+}).strict();
+function normalizeResearchPayload(value: unknown) {
+  const raw = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const rawFacts = raw.facts && typeof raw.facts === 'object' ? raw.facts as Record<string, unknown> : {};
+  const rawEvidence = raw.evidence && typeof raw.evidence === 'object' ? raw.evidence as Record<string, unknown> : {};
+  return {
+    facts: Object.fromEntries(researchFields.map((field) => [field, typeof rawFacts[field] === 'string' ? rawFacts[field] : null])),
+    evidence: Object.fromEntries(researchFields.map((field) => [field, Array.isArray(rawEvidence[field]) ? rawEvidence[field] : []])),
+    conflicts: Array.isArray(raw.conflicts) ? raw.conflicts : [],
+    missingFields: Array.isArray(raw.missingFields) ? raw.missingFields : [],
+    confidence: typeof raw.confidence === 'number' ? raw.confidence : 0,
+  };
+}
 const sourceType = (url: string): ResearchSourceType => /regulamento/i.test(url) ? 'regulation' : /inscri|ticket|sympla/i.test(url) ? 'registration_platform' : 'other';
 const safeUrl = (value: unknown) => typeof value === 'string' && /^https?:\/\//i.test(value) ? value : null;
 
@@ -73,7 +94,7 @@ export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
       const rawText = (response as { output_text?: unknown }).output_text;
       if (typeof rawText !== 'string' || !rawText.trim()) throw new ResearchProviderError('invalid_response', 'A pesquisa não retornou JSON estruturado.');
       let parsed: unknown; try { parsed = JSON.parse(rawText); } catch { throw new ResearchProviderError('invalid_response', 'A pesquisa retornou JSON inválido.'); }
-      const validated = responseSchema.safeParse(parsed);
+      const validated = responseSchema.safeParse(normalizeResearchPayload(parsed));
       if (!validated.success) throw new ResearchProviderError('invalid_response', 'A pesquisa retornou dados fora do schema.');
       const sources = citationsFromResponse(response).slice(0, this.maxSources);
       const sourceByUrl = new Map(sources.map((source) => [source.url, source]));
