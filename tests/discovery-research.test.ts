@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { buildResearchQueries, classifyResearchSource, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, normalizeConfidenceScore, normalizeBrazilianState, normalizeCity, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, auditGeneratedDescription, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
+import { buildResearchQueries, classifyResearchSource, classifyEditionMatch, sourceEvidenceWeight, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, normalizeConfidenceScore, normalizeBrazilianState, normalizeCity, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, auditGeneratedDescription, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 
 const event: ExtractedRaceEvent = { name: 'Corrida Teste', date: '2026-10-10', startTime: null, city: 'Itajubá', state: 'MG', venue: null, address: null, distances: [], price: null, organizerName: null, registrationUrl: null, coverImageUrl: null };
@@ -51,6 +51,20 @@ describe('discovery research', () => {
     expect(normalizeBrazilianState('São Paulo')).toBe('SP');
     expect(normalizeBrazilianState('SP')).toBe('SP');
     expect(normalizeCity('São José dos Campos')).toBe(normalizeCity('SAO JOSE DOS CAMPOS'));
+  });
+  it('marks sources from another year or edition as different editions', () => {
+    const raceInput = { ...input, event: { ...event, name: '2ª Corrida das Águas', date: '2026-10-18' } };
+    expect(classifyEditionMatch(raceInput, { ...source, title: '1ª Corrida das Águas 2026' })).toBe('different_edition');
+    expect(classifyEditionMatch(raceInput, { ...source, title: 'Corrida das Águas 2025' })).toBe('different_edition');
+  });
+  it('weights an authoritative source above weak calendar sources', () => {
+    expect(sourceEvidenceWeight({ ...source, sourceType: 'official_event', trustLevel: 'A', sourceMatchScore: 90 })).toBeGreaterThan(sourceEvidenceWeight({ ...source, sourceType: 'race_calendar', trustLevel: 'C', sourceMatchScore: 100 }));
+  });
+  it('does not let a different-edition source create a critical conflict', () => {
+    const raceInput = { ...input, event: { ...event, name: 'Corrida 2026', date: '2026-10-18' } };
+    const old = { ...source, title: 'Corrida 2025', url: 'https://old.example/race' };
+    const decision = resolveRaceFieldEvidence(raceInput.event, { ...result, facts: { date: '2026-10-18' }, sources: [source, old], fieldEvidence: { date: [{ value: '2026-10-18', source, confidence: 95 }, { value: '2025-10-18', source: old, confidence: 95 }] } });
+    expect(decision.fieldResolutions.date.criticalConflict).toBe(false);
   });
   it('formats civil dates instead of exposing ISO timestamps', () => {
     const editorial = generateResearchEditorial({ ...event, date: '2026-09-26T10:00:00.000Z' });

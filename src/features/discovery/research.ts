@@ -5,7 +5,8 @@ import { adminDb } from '@/lib/supabase/admin';
 
 export interface ResearchInput { event: ExtractedRaceEvent; sourceUrl: string; sourceName?: string; }
 export type ResearchSourceType = 'official_event'|'official_organizer'|'registration_platform'|'regulation'|'government'|'official_social'|'race_calendar'|'photo_platform'|'other';
-export interface ResearchSource { url: string; title: string; sourceType: ResearchSourceType; trustLevel: 'A'|'B'|'C'; retrievedAt: string; domain?: string; sourceMatchScore?: number; matchClassification?: SourceMatchClass; accepted?: boolean; rejectionReason?: string; technicalOrigin?: string; }
+export type EditionMatch = 'same_edition'|'probable_same_edition'|'different_edition'|'unknown';
+export interface ResearchSource { url: string; title: string; sourceType: ResearchSourceType; trustLevel: 'A'|'B'|'C'; retrievedAt: string; domain?: string; sourceMatchScore?: number; matchClassification?: SourceMatchClass; accepted?: boolean; rejectionReason?: string; technicalOrigin?: string; sourceWeight?: number; editionMatch?: EditionMatch; excludedFromResolution?: boolean; exclusionReason?: string; }
 export interface FieldEvidence { value: string; source: ResearchSource; confidence: number; }
 export interface ResearchConflict { field: string; values: { value: string; source: ResearchSource }[]; severity: 'low'|'medium'|'high'; }
 export interface RaceResearchResult { sources: ResearchSource[]; facts: Partial<ExtractedRaceEvent> & Record<string, unknown>; fieldEvidence: Record<string, FieldEvidence[]>; conflicts: ResearchConflict[]; missingFields: string[]; researchConfidence: number; durationMs: number; status: 'completed'|'no_sources'|'no_matching_sources'|'failed'; shortDescription: string; longDescription: string; model?: string; inputTokens?: number; outputTokens?: number; rawSourcesCount?: number; rejectedSources?: { url: string; reason: string; score?: number }[]; webSearches?: number; responseShape?: Record<string, unknown>; }
@@ -62,6 +63,19 @@ export function buildResearchQueries(input: ResearchInput, max = 4) {
   return [`"${base}"`, `"${base}" inscrições`, `"${base}" regulamento`, `"${base}" kit`].slice(0, Math.max(0, max));
 }
 const trustRank = (value: 'A'|'B'|'C') => value === 'A' ? 3 : value === 'B' ? 2 : 1;
+const sourceTypeRank: Record<ResearchSourceType, number> = { official_event: 8, registration_platform: 7, official_organizer: 6, government: 5, official_social: 4, race_calendar: 3, photo_platform: 2, other: 1, regulation: 8 };
+export function sourceEvidenceWeight(source: ResearchSource) { return (sourceTypeRank[source.sourceType] || 1) * trustRank(source.trustLevel) * (Math.max(0, source.sourceMatchScore ?? 0) / 100 || 0.25); }
+const editionNumber = (value: string) => { const match = value.match(/(?:^|\s)(\d{1,2})\s*[ªaºo]?\s*(?:edi[cç][aã]o|corrida|volta)/i); return match ? Number(match[1]) : null; };
+export function classifyEditionMatch(input: ResearchInput, source: ResearchSource, facts: Record<string, unknown> = {}): EditionMatch {
+  const text = `${source.title} ${source.url}`.toLowerCase(); const candidate = `${input.event.name || ''}`;
+  const candidateYear = input.event.date?.match(/\b(20\d{2})\b/)?.[1]; const sourceYear = text.match(/\b(20\d{2})\b/)?.[1];
+  if (candidateYear && sourceYear && candidateYear !== sourceYear) return 'different_edition';
+  const cEdition = editionNumber(candidate); const sEdition = editionNumber(text); if (cEdition !== null && sEdition !== null && cEdition !== sEdition) return 'different_edition';
+  const sourceDate = typeof facts.date === 'string' ? facts.date : text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](20\d{2})\b/)?.[0];
+  if (sourceDate && candidateYear && !sourceDate.includes(candidateYear)) return 'different_edition';
+  if (source.title || source.url) return 'probable_same_edition';
+  return 'unknown';
+}
 export function classifyResearchSource(url: string, title = ''): { sourceType: ResearchSourceType; trustLevel: 'A'|'B'|'C'; domain: string } {
   let domain = '';
   try { domain = new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch { /* invalid URLs are rejected upstream */ }
@@ -86,7 +100,7 @@ export function sourceMatchScore(input: ResearchInput, source: ResearchSource, f
 const sourcePriority = (source: ResearchSource) => ({ regulation: 8, official_event: 7, registration_platform: 6, official_organizer: 5, government: 4, official_social: 4, race_calendar: 3, photo_platform: 2, other: 1 }[source.sourceType] || 1) * trustRank(source.trustLevel);
 export function classifySourceMatch(score: number): SourceMatchClass { return score >= 80 ? 'strong_match' : score >= 55 ? 'probable_match' : score >= 25 ? 'weak_match' : 'rejected'; }
 export function matchResearchSources(input: ResearchInput, sources: ResearchSource[], facts: Partial<ExtractedRaceEvent> & Record<string, unknown>): SourceMatch[] {
-  return sources.map((source) => { const score = sourceMatchScore(input, source, facts); return { source, score, classification: classifySourceMatch(score), independentKey: new URL(source.url).hostname.replace(/^www\./, '') }; });
+  return sources.map((source) => { const score = sourceMatchScore(input, source, facts); const editionMatch = classifyEditionMatch(input, source, facts); const weighted = sourceEvidenceWeight({ ...source, sourceMatchScore: score }); return { source: { ...source, sourceMatchScore: score, sourceWeight: weighted, editionMatch, excludedFromResolution: editionMatch === 'different_edition', exclusionReason: editionMatch === 'different_edition' ? 'different_edition' : undefined }, score, classification: classifySourceMatch(score), independentKey: new URL(source.url).hostname.replace(/^www\./, '') }; });
 }
 const stateMap: Record<string, string> = { 'sao paulo': 'SP', 'minas gerais': 'MG', 'rio de janeiro': 'RJ', 'espirito santo': 'ES', parana: 'PR', bahia: 'BA', goias: 'GO', ceara: 'CE', paraiba: 'PB', pernambuco: 'PE', 'mato grosso': 'MT', 'mato grosso do sul': 'MS', 'rio grande do sul': 'RS', 'rio grande do norte': 'RN', 'santa catarina': 'SC', sergipe: 'SE', alagoas: 'AL', amazonas: 'AM', maranhao: 'MA', para: 'PA', piaui: 'PI', 'distrito federal': 'DF', acre: 'AC', amapa: 'AP', rondonia: 'RO', roraima: 'RR', tocantins: 'TO' };
 const plain = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -101,15 +115,18 @@ export function resolveRaceFieldEvidence(base: ExtractedRaceEvent, research: Rac
   const resolvedEvent = { ...base };
   const fieldResolutions: Record<string, FieldResolution> = {};
   const replacements: ResearchDecision['replacements'] = [];
-  const sourceScores = new Map(research.sources.map((source) => [source.url, sourceMatchScore({ event: base, sourceUrl: '' }, source, research.facts)]));
+  const sourceMatches = matchResearchSources({ event: base, sourceUrl: '' }, research.sources, research.facts);
+  const sourceMeta = new Map(sourceMatches.map((match) => [match.source.url, match.source]));
+  const sourceScores = new Map(sourceMatches.map((match) => [match.source.url, match.score]));
   for (const field of Object.keys(research.facts)) {
     const value = research.facts[field]; if (emptyValue(value)) continue;
-    const evidence = (research.fieldEvidence[field] || []).filter((item) => !emptyValue(item.value));
+    const evidence = (research.fieldEvidence[field] || []).filter((item) => !emptyValue(item.value) && sourceMeta.get(item.source.url)?.editionMatch !== 'different_edition');
     const grouped = new Map<string, { value: unknown; sources: ResearchSource[]; confidence: number }>();
     for (const item of evidence) { const key = normalizeValue(item.value, field); const group = grouped.get(key) || { value: item.value, sources: [], confidence: 0 }; group.sources.push(item.source); group.confidence = Math.max(group.confidence, item.confidence); grouped.set(key, group); }
     const independentCount = (sources: ResearchSource[]) => new Set(sources.map((source) => { try { return new URL(source.url).hostname.replace(/^www\./, '') } catch { return source.url; } })).size;
     const matchScore = (sources: ResearchSource[]) => Math.max(...sources.map((source) => sourceScores.get(source.url) || 0));
-    const ranked = [...grouped.values()].sort((a, b) => b.confidence + matchScore(b.sources) * 0.25 + independentCount(b.sources) * 4 + sourcePriority(b.sources[0]) - (a.confidence + matchScore(a.sources) * 0.25 + independentCount(a.sources) * 4 + sourcePriority(a.sources[0])));
+    const rank = (group: { sources: ResearchSource[]; confidence: number }) => group.confidence + Math.max(...group.sources.map((source) => sourceMeta.get(source.url)?.sourceWeight || sourceEvidenceWeight(source))) * 6 + independentCount(group.sources) * 2 + sourcePriority(group.sources[0]);
+    const ranked = [...grouped.values()].sort((a, b) => rank(b) - rank(a));
     const best = ranked[0]; const conflict = ranked.length > 1;
     const current = base[field as keyof ExtractedRaceEvent];
     const currentMatches = !emptyValue(current) && best && normalizeValue(current, field) === normalizeValue(best.value, field);
@@ -181,7 +198,7 @@ export async function researchAndEnrichCandidate(candidateId: string, input: Res
   const audit = auditGeneratedDescription(enriched.longDescription, merged, decision.fieldResolutions);
   const rejectionReasons = [...new Set([...decision.rejectionReasons, ...(audit.unsupportedClaims.length ? ['unsupported_editorial_claim'] : [])])];
   const autoPublishEligible = decision.autoPublishEligible && audit.unsupportedClaims.length === 0;
-  const payload = { candidate_id: candidateId, base_event: input.event, enriched_event: merged, research_sources: { accepted: scoredSources.filter((source) => source.accepted), rejected: [...rejectedSources, ...scoredSources.filter((source) => !source.accepted)] }, field_evidence: result.fieldEvidence, conflicts: result.conflicts, missing_fields: result.missingFields, research_confidence: enriched.researchConfidence, content_quality_score: decision.contentQualityScore, short_description: enriched.shortDescription, long_description: enriched.longDescription, model: result.model || null, input_tokens: result.inputTokens ?? null, output_tokens: result.outputTokens ?? null, total_tokens: (result.inputTokens || 0) + (result.outputTokens || 0) || null, field_resolutions: decision.fieldResolutions, replacements: decision.replacements, unresolved_conflicts: decision.unresolvedConflicts, factual_confidence: decision.factualConfidence, auto_publish_eligible: autoPublishEligible, rejection_reasons: rejectionReasons, description_audit: { supportedClaims: audit.supportedClaims, unsupportedClaims: audit.unsupportedClaims, referencedUrls: audit.referencedUrls }, research_metadata: { ...metrics, webSearches: result.webSearches ?? 0, responseShape: result.responseShape ?? {}, sourceMatchScores: scoredSources.map(({ url, sourceMatchScore, matchClassification, accepted, rejectionReason, domain, technicalOrigin }) => ({ url, domain, sourceMatchScore, matchClassification, accepted, rejectionReason, technicalOrigin })) } };
+  const payload = { candidate_id: candidateId, base_event: input.event, enriched_event: merged, research_sources: { accepted: scoredSources.filter((source) => source.accepted), rejected: [...rejectedSources, ...scoredSources.filter((source) => !source.accepted)] }, field_evidence: result.fieldEvidence, conflicts: result.conflicts, missing_fields: result.missingFields, research_confidence: enriched.researchConfidence, content_quality_score: decision.contentQualityScore, short_description: enriched.shortDescription, long_description: enriched.longDescription, model: result.model || null, input_tokens: result.inputTokens ?? null, output_tokens: result.outputTokens ?? null, total_tokens: (result.inputTokens || 0) + (result.outputTokens || 0) || null, field_resolutions: decision.fieldResolutions, replacements: decision.replacements, unresolved_conflicts: decision.unresolvedConflicts, factual_confidence: decision.factualConfidence, auto_publish_eligible: autoPublishEligible, rejection_reasons: rejectionReasons, description_audit: { supportedClaims: audit.supportedClaims, unsupportedClaims: audit.unsupportedClaims, referencedUrls: audit.referencedUrls }, research_metadata: { ...metrics, webSearches: result.webSearches ?? 0, responseShape: result.responseShape ?? {}, sourceMatchScores: scoredSources.map(({ url, sourceMatchScore, matchClassification, accepted, rejectionReason, domain, technicalOrigin, sourceWeight, editionMatch, excludedFromResolution, exclusionReason }) => ({ url, domain, sourceMatchScore, matchClassification, accepted, rejectionReason, technicalOrigin, sourceWeight, editionMatch, excludedFromResolution, exclusionReason })) } };
   if (result.status === 'completed') {
     await options.onPersistenceStart?.();
     const { error } = await client.from('discovery_candidate_enrichments').upsert(payload, { onConflict: 'candidate_id' });
