@@ -12,11 +12,12 @@ import { markCandidateProcessing, recoverExpiredProcessingCandidatesByIds } from
 import { processDiscoveryCandidate } from '@/features/discovery/candidate-processor';
 import type { DiscoverySource } from '@/features/discovery/types';
 import { createResearchDiagnostic, finishResearchDiagnostic, updateResearchDiagnostic } from '@/features/discovery/research-diagnostics';
+import { runSelectiveDryRunBatch, validateBatchCandidateIds } from '@/features/discovery/dry-run-batch';
 
 const requestSchema = z.object({
-  action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run', 'dry-run-selected', 'research-diagnostic']),
+  action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run', 'dry-run-selected', 'dry-run-batch-selected', 'research-diagnostic']),
   sourceIds: z.array(z.string().uuid()).max(50).optional(),
-  candidateIds: z.array(z.string().uuid()).max(10).optional(),
+  candidateIds: z.array(z.string().uuid()).max(50).optional(),
   sourceLimit: z.number().int().min(1).max(50).optional(),
   sourceId: z.string().uuid().optional(),
   limit: z.number().int().min(1).max(10).optional(),
@@ -103,12 +104,22 @@ export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Parâmetros inválidos.' }, { status: 400 });
   const input = parsed.data;
-  if ((input.action === 'dry-run' || input.action === 'discover-and-dry-run' || input.action === 'research-diagnostic') && input.enableResearch !== false) {
+  if ((input.action === 'dry-run' || input.action === 'discover-and-dry-run' || input.action === 'dry-run-batch-selected' || input.action === 'research-diagnostic') && input.enableResearch !== false) {
     try { getResearchModelConfiguration(); } catch (error) { return NextResponse.json({ error: safeError(error) }, { status: 503 }); }
   }
   let client;
   try { client = adminDb(); } catch { return NextResponse.json({ error: 'Banco indisponível.' }, { status: 503 }); }
   try {
+    if (input.action === 'dry-run-batch-selected') {
+      const rawCandidateIds = input.candidateIds || [];
+      const { data: existing, error } = await client.from('discovery_candidates').select('id').in('id', rawCandidateIds);
+      if (error) return NextResponse.json({ error: 'Não foi possível validar candidatos.' }, { status: 500 });
+      try {
+        const validated = validateBatchCandidateIds(rawCandidateIds, (existing || []).map((row) => String(row.id)));
+        const report = await runSelectiveDryRunBatch({ client, candidateIds: validated.candidateIds, enableResearch: input.enableResearch !== false, researchLimit: input.researchLimit ?? validated.validatedCount, concurrency: 1, allowReprocessExtracted: input.allowReprocessExtracted === true });
+        return NextResponse.json({ requestedCount: validated.requestedCount, validatedCount: validated.validatedCount, candidateIds: validated.candidateIds, report });
+      } catch (validationError) { return NextResponse.json({ error: safeError(validationError) }, { status: 400 }); }
+    }
     if (input.action === 'research-diagnostic') {
       if (!input.candidateIds || input.candidateIds.length !== 1) return NextResponse.json({ error: 'research-diagnostic exige exatamente um candidateId.' }, { status: 400 });
       const { data: candidate, error } = await client.from('discovery_candidates').select('*').eq('id', input.candidateIds[0]).maybeSingle();
