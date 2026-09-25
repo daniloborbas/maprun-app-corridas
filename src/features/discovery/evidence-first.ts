@@ -1,7 +1,8 @@
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
-import type { ResearchInput, ResearchSourceType } from './research';
+import type { ResearchInput, ResearchSourceType, RaceResearchResult } from './research';
 import { fetchSafeDiscoveryText, normalizeDiscoveryUrl, type DiscoveryProviderContext } from './url-discovery';
 import type { DiscoverySource } from './types';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type EvidenceEditionMatch = 'same_edition' | 'probable_same_edition' | 'different_edition' | 'unknown';
 export interface RaceEvidenceDocument {
@@ -21,7 +22,7 @@ export interface RaceEvidenceDocument {
 export interface DiscoveredEvidenceUrl { url: string; domain: string; title?: string; snippet?: string; discoveryMethod: 'known_url' | 'deterministic_query'; query?: string; }
 export interface RaceSourceDiscoveryProvider { discover(input: ResearchInput & { knownUrls?: string[] }): Promise<DiscoveredEvidenceUrl[]>; }
 export interface RaceEvidenceFetcher { fetch(url: DiscoveredEvidenceUrl): Promise<{ document?: RaceEvidenceDocument; error?: string }>; }
-export interface EvidenceFirstTelemetry { discoveryUrlsFound: number; evidenceDocsFetched: number; evidenceDocsUsed: number; cacheHits: number; cacheMisses: number; deterministicFieldsResolved: number; llmFieldsRequested: string[]; fallbackWebSearchUsed: boolean; evidenceChars: number; inputTokens: number; outputTokens: number; totalTokens: number; }
+export interface EvidenceFirstTelemetry { discoveryUrlsFound: number; evidenceDocsFetched: number; evidenceDocsUsed: number; evidenceCacheHits: number; evidenceCacheMisses: number; deterministicFieldsResolved: number; llmFieldsRequested: string[]; fallbackWebSearchUsed: boolean; evidenceChars: number; evidenceResolverInputTokens: number; evidenceResolverOutputTokens: number; fallbackInputTokens: number; fallbackOutputTokens: number; inputTokens: number; outputTokens: number; totalTokens: number; }
 
 const KEYWORDS = /data|hor[aá]rio|largada|local|endere[cç]o|dist[aâ]ncia|inscri[cç][aã]o|valor|regulamento|kit|retirada|categoria|premia[cç][aã]o|organiza[cç][aã]o/i;
 const MAX_DOCS = 3;
@@ -90,4 +91,27 @@ export async function collectEvidenceFirstDocuments(input: ResearchInput & { kno
   const fetched = await Promise.all(urls.map((url) => fetcher.fetch(url)));
   const documents = selectEvidenceDocuments(fetched.flatMap((item) => item.document ? [item.document] : []));
   return { urls, documents, errors: fetched.flatMap((item) => item.error ? [item.error] : []) };
+}
+
+export interface EvidenceFirstResearchOptions { client: SupabaseClient; fallback?: RaceResearchProviderLike; resolve?: (input: string, fields: string[]) => Promise<{ facts: Record<string, unknown>; inputTokens: number; outputTokens: number }>; }
+export interface RaceResearchProviderLike { research(args: { queries: string[]; known: ResearchInput; maxSources: number }): Promise<RaceResearchResult>; }
+export async function researchCandidateEvidenceFirst(input: ResearchInput, options: EvidenceFirstResearchOptions): Promise<RaceResearchResult & { evidenceTelemetry: EvidenceFirstTelemetry }> {
+  const source: DiscoverySource = { id: 'candidate', name: input.sourceName || 'candidate', base_url: input.sourceUrl, source_type: 'other', active: true, region: input.event.state || '', config: {} };
+  const started = Date.now(); const found = await createKnownUrlDiscoveryProvider().discover(input);
+  const documents: RaceEvidenceDocument[] = []; let cacheHits = 0; let cacheMisses = 0; let fetched = 0;
+  for (const url of rankEvidenceUrls(input, found).slice(0, MAX_DOCS)) {
+    type CachedEvidence = { url: string; domain: string; title?: string | null; extracted_text: string; fetched_at: string };
+    let cached: CachedEvidence | null = null;
+    try { const result = await options.client.from('discovery_evidence_cache').select('url,domain,title,extracted_text,fetched_at').eq('normalized_url', url.url).gt('expires_at', new Date().toISOString()).maybeSingle(); cached = result.data as CachedEvidence | null; } catch { /* cache is best effort */ }
+    if (cached?.extracted_text) { cacheHits++; documents.push({ url: cached.url, domain: cached.domain, title: cached.title || undefined, sourceType: 'other', trustLevel: 'C', sourceMatchScore: 40, sourceWeight: 40, editionMatch: 'unknown', text: cached.extracted_text.slice(0, MAX_DOC_CHARS), extractedAt: cached.fetched_at, provenance: { discoveryMethod: url.discoveryMethod, query: url.query } }); continue; }
+    cacheMisses++; const result = await createSafeEvidenceFetcher(input, source).fetch(url); if (!result.document) continue; fetched++; documents.push(result.document);
+    try { await options.client.from('discovery_evidence_cache').upsert({ url: result.document.url, normalized_url: result.document.url, domain: result.document.domain, title: result.document.title || null, extracted_text: result.document.text, expires_at: new Date(Date.now() + 48 * 3600000).toISOString(), status: 'ok', metadata: { sourceType: result.document.sourceType } }, { onConflict: 'normalized_url' }); } catch { /* cache is best effort */ }
+  }
+  const selected = selectEvidenceDocuments(documents); const context = compactEvidenceContext(selected); const deterministic = deterministicResolvedFields(input.event); const requested = Object.keys(input.event).filter((field) => !deterministic.includes(field));
+  let facts: Record<string, unknown> = {}; let resolverInputTokens = 0; let resolverOutputTokens = 0;
+  if (options.resolve && selected.length) { const resolved = await options.resolve(context, requested); facts = resolved.facts; resolverInputTokens = resolved.inputTokens; resolverOutputTokens = resolved.outputTokens; }
+  const needsFallback = selected.length < 2 || requested.includes('startTime') || requested.includes('venue');
+  let fallback: RaceResearchResult | null = null; if (needsFallback && options.fallback) fallback = await options.fallback.research({ queries: buildDeterministicResearchQueries(input), known: input, maxSources: 5 });
+  const result = fallback || { sources: selected.map((doc) => ({ url: doc.url, title: doc.title || doc.domain, sourceType: doc.sourceType, trustLevel: doc.trustLevel, retrievedAt: doc.extractedAt, domain: doc.domain, sourceWeight: doc.sourceWeight, sourceMatchScore: doc.sourceMatchScore, editionMatch: doc.editionMatch })), facts, fieldEvidence: {}, conflicts: [], missingFields: requested, researchConfidence: selected.length ? 50 : 0, durationMs: Date.now() - started, status: selected.length ? 'completed' : 'no_sources', shortDescription: '', longDescription: '', rawSourcesCount: selected.length, webSearches: 0 };
+  return { ...result, evidenceTelemetry: { discoveryUrlsFound: found.length, evidenceDocsFetched: fetched, evidenceDocsUsed: selected.length, evidenceCacheHits: cacheHits, evidenceCacheMisses: cacheMisses, evidenceChars: context.length, deterministicFieldsResolved: deterministic.length, llmFieldsRequested: requested, fallbackWebSearchUsed: Boolean(fallback), evidenceResolverInputTokens: resolverInputTokens, evidenceResolverOutputTokens: resolverOutputTokens, fallbackInputTokens: fallback?.inputTokens || 0, fallbackOutputTokens: fallback?.outputTokens || 0, inputTokens: resolverInputTokens + (fallback?.inputTokens || 0), outputTokens: resolverOutputTokens + (fallback?.outputTokens || 0), totalTokens: resolverInputTokens + resolverOutputTokens + (fallback?.inputTokens || 0) + (fallback?.outputTokens || 0) } };
 }
