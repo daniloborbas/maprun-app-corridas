@@ -3,6 +3,8 @@ import type { ResearchInput, ResearchSourceType, RaceResearchResult } from './re
 import { fetchSafeDiscoveryText, normalizeDiscoveryUrl, type DiscoveryProviderContext } from './url-discovery';
 import type { DiscoverySource } from './types';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import OpenAI from 'openai';
+interface ResearchResponsesClient { responses: { create: (input: Record<string, unknown>, options?: { signal?: AbortSignal }) => Promise<unknown> } }
 
 export type EvidenceEditionMatch = 'same_edition' | 'probable_same_edition' | 'different_edition' | 'unknown';
 export interface RaceEvidenceDocument {
@@ -114,4 +116,24 @@ export async function researchCandidateEvidenceFirst(input: ResearchInput, optio
   let fallback: RaceResearchResult | null = null; if (needsFallback && options.fallback) fallback = await options.fallback.research({ queries: buildDeterministicResearchQueries(input), known: input, maxSources: 5 });
   const result = fallback || { sources: selected.map((doc) => ({ url: doc.url, title: doc.title || doc.domain, sourceType: doc.sourceType, trustLevel: doc.trustLevel, retrievedAt: doc.extractedAt, domain: doc.domain, sourceWeight: doc.sourceWeight, sourceMatchScore: doc.sourceMatchScore, editionMatch: doc.editionMatch })), facts, fieldEvidence: {}, conflicts: [], missingFields: requested, researchConfidence: selected.length ? 50 : 0, durationMs: Date.now() - started, status: selected.length ? 'completed' : 'no_sources', shortDescription: '', longDescription: '', rawSourcesCount: selected.length, webSearches: 0 };
   return { ...result, evidenceTelemetry: { discoveryUrlsFound: found.length, evidenceDocsFetched: fetched, evidenceDocsUsed: selected.length, evidenceCacheHits: cacheHits, evidenceCacheMisses: cacheMisses, evidenceChars: context.length, deterministicFieldsResolved: deterministic.length, llmFieldsRequested: requested, fallbackWebSearchUsed: Boolean(fallback), evidenceResolverInputTokens: resolverInputTokens, evidenceResolverOutputTokens: resolverOutputTokens, fallbackInputTokens: fallback?.inputTokens || 0, fallbackOutputTokens: fallback?.outputTokens || 0, inputTokens: resolverInputTokens + (fallback?.inputTokens || 0), outputTokens: resolverOutputTokens + (fallback?.outputTokens || 0), totalTokens: resolverInputTokens + resolverOutputTokens + (fallback?.inputTokens || 0) + (fallback?.outputTokens || 0) } };
+}
+
+export function createOpenAIEvidenceResolver(options: { client?: ResearchResponsesClient; model?: string } = {}) {
+  const client = options.client || (new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) as unknown as ResearchResponsesClient);
+  const model = options.model || process.env.OPENAI_RESEARCH_MODEL?.trim();
+  if (!model) throw new Error('evidence_resolver_unavailable');
+  return async (evidenceText: string, fields: string[]) => {
+    if (!fields.length) return { facts: {}, inputTokens: 0, outputTokens: 0 };
+    const properties = Object.fromEntries(fields.map((field) => [field, { type: ['string', 'null'] }]));
+    const schema = { type: 'object', additionalProperties: false, properties, required: fields };
+    const request = { model, reasoning: { effort: 'low' }, input: `Resolva somente os campos solicitados usando exclusivamente as evidências abaixo. Sem inferências e sem novas URLs. Retorne null quando não houver suporte.\nCampos: ${JSON.stringify(fields)}\nEvidências:\n${evidenceText}`, text: { format: { type: 'json_schema', name: 'maprun_evidence_resolution', strict: true, schema } } };
+    try {
+      const response = await client.responses.create(request);
+      const raw = (response as { output_text?: unknown }).output_text;
+      const parsed = raw && typeof raw === 'string' ? JSON.parse(raw) as Record<string, unknown> : {};
+      return { facts: Object.fromEntries(fields.map((field) => [field, parsed[field] ?? null])), inputTokens: (response as { usage?: { input_tokens?: number } }).usage?.input_tokens || 0, outputTokens: (response as { usage?: { output_tokens?: number } }).usage?.output_tokens || 0 };
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Evidence resolver failed');
+    }
+  };
 }
