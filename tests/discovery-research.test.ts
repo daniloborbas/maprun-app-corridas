@@ -58,4 +58,17 @@ describe('discovery research', () => {
     expect(sanitizePersistenceError({ code: '23505', message: 'duplicate', details: 'unique violation', hint: 'candidate_id' })).toMatchObject({ code: '23505', details: 'unique violation', hint: 'candidate_id' });
     expect(new ResearchPersistenceError('x', { message: 'x', code: '23505' }).details.code).toBe('23505');
   });
+  it('preserves decimal research confidence and integer quality scores in the persistence payload', async () => {
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    const client = { from: vi.fn(() => ({ upsert })) } as never;
+    const provider = { research: vi.fn().mockResolvedValue({ ...result, researchConfidence: 0.78 }) };
+    await researchAndEnrichCandidate('00000000-0000-0000-0000-000000000001', input, provider, { client });
+    const payload = upsert.mock.calls[0][0];
+    expect(payload.research_confidence).toBe(0.78);
+    expect(payload.factual_confidence).toBe(1);
+    expect(payload.content_quality_score).toBe(58);
+    expect(typeof payload.research_confidence).toBe('number');
+    expect(typeof payload.factual_confidence).toBe('number');
+    expect(typeof payload.content_quality_score).toBe('number');
+  });
 });
