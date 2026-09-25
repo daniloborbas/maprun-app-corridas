@@ -2,6 +2,8 @@ import 'server-only';
 import { z } from 'zod';
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 import { adminDb } from '@/lib/supabase/admin';
+import { classifyRegistrationUrlSemantic } from '@/features/events/registration';
+import { hasStrongCandidateIdentity as strongCandidateIdentity } from './identity';
 import { createOpenAIEvidenceResolver, isEvidenceFirstResearchEnabled, researchCandidateEvidenceFirst, type EvidenceFirstTelemetry } from './evidence-first';
 
 export interface ResearchInput { event: ExtractedRaceEvent; sourceUrl: string; sourceName?: string; }
@@ -116,6 +118,7 @@ export function sourceMatchScore(input: ResearchInput, source: ResearchSource, f
 }
 const sourcePriority = (source: ResearchSource) => ({ regulation: 8, official_event: 7, registration_platform: 6, official_organizer: 5, government: 4, official_social: 4, race_calendar: 3, photo_platform: 2, other: 1 }[source.sourceType] || 1) * trustRank(source.trustLevel);
 export function classifySourceMatch(score: number): SourceMatchClass { return score >= 80 ? 'strong_match' : score >= 55 ? 'probable_match' : score >= 25 ? 'weak_match' : 'rejected'; }
+export { strongCandidateIdentity as hasStrongCandidateIdentity };
 export function matchResearchSources(input: ResearchInput, sources: ResearchSource[], facts: Partial<ExtractedRaceEvent> & Record<string, unknown>): SourceMatch[] {
   return sources.map((source) => { const score = sourceMatchScore(input, source, facts); const editionMatch = classifyEditionMatch(input, source, facts); const weighted = sourceEvidenceWeight({ ...source, sourceMatchScore: score }); return { source: { ...source, sourceMatchScore: score, sourceWeight: weighted, editionMatch, excludedFromResolution: editionMatch === 'different_edition', exclusionReason: editionMatch === 'different_edition' ? 'different_edition' : undefined }, score, classification: classifySourceMatch(score), independentKey: new URL(source.url).hostname.replace(/^www\./, '') }; });
 }
@@ -161,7 +164,7 @@ export function resolveRaceFieldEvidence(base: ExtractedRaceEvent, research: Rac
   const quality = contentQualityScore(resolvedEvent, research.facts);
   const criticalReasons = [...new Set(Object.entries(fieldResolutions).filter(([, resolution]) => resolution.criticalConflict).map(([field]) => `critical_conflict_${field}`))];
   const rejectionReasons = [...criticalReasons, ...(factualConfidence < 90 ? ['low_factual_confidence'] : []), ...(quality < 70 ? ['low_content_quality'] : [])];
-  return { resolvedEvent, fieldResolutions, replacements, unresolvedConflicts, factualConfidence, contentQualityScore: quality, autoPublishEligible: !criticalConflict && factualConfidence >= 90 && quality >= 70 && Boolean(resolvedEvent.name && resolvedEvent.date && resolvedEvent.city && resolvedEvent.state && resolvedEvent.distances.length), rejectionReasons };
+  const registrationKind = classifyRegistrationUrlSemantic(resolvedEvent.registrationUrl || ''); const registrationUsable = registrationKind === 'valid_registration' || registrationKind === 'probable_registration'; return { resolvedEvent, fieldResolutions, replacements, unresolvedConflicts, factualConfidence, contentQualityScore: quality, autoPublishEligible: !criticalConflict && factualConfidence >= 90 && quality >= 70 && registrationUsable && Boolean(resolvedEvent.name && resolvedEvent.date && resolvedEvent.city && resolvedEvent.state && resolvedEvent.distances.length), rejectionReasons: [...rejectionReasons, ...(!registrationUsable ? ['invalid_registration_url'] : [])] };
 }
 export function mergeRaceEvidence(base: ExtractedRaceEvent, research: RaceResearchResult): ExtractedRaceEvent {
   return resolveRaceFieldEvidence(base, research).resolvedEvent;
@@ -259,3 +262,6 @@ export async function researchAndEnrichCandidate(candidateId: string, input: Res
   const persistenceStatus = result.status !== 'completed' ? 'not_persisted' as const : (options.dryRunExecutionId && persistedExecutionId !== options.dryRunExecutionId ? 'stale_result' as const : persistedUpdatedAt ? 'persisted' as const : 'not_persisted' as const);
   return { status: result.status, candidateId, enrichedEvent: merged, research: enriched, researchMetadata: persistenceStatus === 'persisted' ? persistedResearchMetadata : null, durationMs: Date.now() - started, decision, persistedUpdatedAt, persistenceStatus };
 }
+
+
+

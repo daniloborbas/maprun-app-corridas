@@ -3,6 +3,7 @@ import type { ResearchInput, ResearchSourceType, RaceResearchResult } from './re
 import { fetchSafeDiscoveryText, normalizeDiscoveryUrl, type DiscoveryProviderContext } from './url-discovery';
 import type { DiscoverySource } from './types';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { classifyRegistrationUrlSemantic } from '@/features/events/registration';
 import OpenAI from 'openai';
 interface ResearchResponsesClient { responses: { create: (input: Record<string, unknown>, options?: { signal?: AbortSignal }) => Promise<unknown> } }
 
@@ -26,7 +27,7 @@ export interface RaceSourceDiscoveryProvider { discover(input: ResearchInput & {
 export interface RaceEvidenceFetcher { fetch(url: DiscoveredEvidenceUrl): Promise<{ document?: RaceEvidenceDocument; error?: string }>; }
 export function calculateEvidenceResearchConfidence(input: { event: ExtractedRaceEvent; sources: Array<{ sourceType: ResearchSourceType; trustLevel: 'A'|'B'|'C'; sourceMatchScore?: number; editionMatch?: EvidenceEditionMatch }>; missingFields?: string[]; conflicts?: Array<{ field?: string; severity?: string }>; resolverFields?: string[] }): number {
   const critical = ['name', 'date', 'city', 'state', 'registrationUrl'];
-  const complete = critical.filter((field) => { const value = input.event[field as keyof ExtractedRaceEvent]; return value !== null && value !== undefined && value !== '' && (!Array.isArray(value) || value.length > 0); }).length;
+  const complete = critical.filter((field) => { const value = input.event[field as keyof ExtractedRaceEvent]; if (field === 'registrationUrl') return ['valid_registration', 'probable_registration'].includes(classifyRegistrationUrlSemantic(String(value || ''))); return value !== null && value !== undefined && value !== '' && (!Array.isArray(value) || value.length > 0); }).length;
   const completeness = (complete / critical.length) * 50;
   const typeRank: Record<string, number> = { official_event: 1, registration_platform: .95, regulation: .95, official_organizer: .9, government: .8, race_calendar: .7, official_social: .65, photo_platform: .4, other: .2 };
   const trustRank: Record<string, number> = { A: 1, B: .75, C: .5 };
@@ -163,3 +164,4 @@ export function createOpenAIEvidenceResolver(options: { client?: ResearchRespons
     }
   };
 }
+
