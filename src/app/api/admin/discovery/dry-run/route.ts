@@ -12,10 +12,12 @@ import { markCandidateProcessing, recoverExpiredProcessingCandidatesByIds } from
 import { processDiscoveryCandidate } from '@/features/discovery/candidate-processor';
 import type { DiscoverySource } from '@/features/discovery/types';
 import { createResearchDiagnostic, finishResearchDiagnostic, updateResearchDiagnostic } from '@/features/discovery/research-diagnostics';
-import { runSelectiveDryRunBatch, validateBatchCandidateIds } from '@/features/discovery/dry-run-batch';
+import { runSelectiveDryRunBatch, validateBatchCandidateIds, SELECTIVE_BATCH_CHUNK_SIZE } from '@/features/discovery/dry-run-batch';
+import { createPersistedBatch, getPersistedBatch, listPersistedBatchResults, persistBatchChunk } from '@/features/discovery/dry-run-batch-persistence';
+import { resolveEvidenceFirstResearchFlag } from '@/features/discovery/evidence-first';
 
 const requestSchema = z.object({
-  action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run', 'dry-run-selected', 'dry-run-batch-selected', 'research-diagnostic']),
+  action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run', 'dry-run-selected', 'dry-run-batch-selected', 'dry-run-batch-start', 'process-next-batch-chunk', 'batch-status', 'batch-cancel', 'research-diagnostic']),
   sourceIds: z.array(z.string().uuid()).max(50).optional(),
   candidateIds: z.array(z.string().uuid()).max(50).optional(),
   sourceLimit: z.number().int().min(1).max(50).optional(),
@@ -26,10 +28,23 @@ const requestSchema = z.object({
   concurrency: z.number().int().min(1).max(2).optional(),
   allowReprocessExtracted: z.boolean().optional(),
   dryRunExecutionId: z.string().uuid().optional(),
+  batchExecutionId: z.string().uuid().optional(),
 });
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+
+export async function GET(request: Request) {
+  try { await requireAdmin(); } catch { return NextResponse.json({ error: 'Acesso restrito.' }, { status: 403 }); }
+  const id = new URL(request.url).searchParams.get('batchExecutionId');
+  if (!id) return NextResponse.json({ error: 'batchExecutionId é obrigatório.' }, { status: 400 });
+  try {
+    const client = adminDb();
+    const batch = await getPersistedBatch(client, id);
+    if (!batch) return NextResponse.json({ error: 'Batch não encontrado.' }, { status: 404 });
+    return NextResponse.json({ batch, results: await listPersistedBatchResults(client, id) });
+  } catch { return NextResponse.json({ error: 'Não foi possível consultar o batch.' }, { status: 503 }); }
+}
 
 function safeError(error: unknown) {
   return error instanceof Error ? error.message.slice(0, 240) : 'Falha controlada na operação.';
@@ -104,6 +119,31 @@ export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Parâmetros inválidos.' }, { status: 400 });
   const input = parsed.data;
+  if (input.action === 'batch-status' || input.action === 'process-next-batch-chunk' || input.action === 'batch-cancel') {
+    if (!input.batchExecutionId) return NextResponse.json({ error: 'batchExecutionId é obrigatório.' }, { status: 400 });
+    const batch = await getPersistedBatch(adminDb(), input.batchExecutionId);
+    if (!batch) return NextResponse.json({ error: 'Batch não encontrado.' }, { status: 404 });
+    if (input.action === 'batch-status') return NextResponse.json({ batch, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId) });
+    if (input.action === 'batch-cancel') { if (['completed','failed','cancelled'].includes(batch.status)) return NextResponse.json({ batch }); await adminDb().from('discovery_dry_run_batches').update({ status: 'cancelled', updated_at: new Date().toISOString(), finished_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId); return NextResponse.json({ batch: { ...batch, status: 'cancelled' } }); }
+    if (batch.status === 'completed' || batch.status === 'cancelled') return NextResponse.json({ batch, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId) });
+    const ids = Array.isArray(batch.candidate_ids) ? batch.candidate_ids as string[] : [];
+    const start = Number(batch.next_index); const chunk = ids.slice(start, start + Number((batch.configuration as Record<string, unknown>)?.chunkSize || SELECTIVE_BATCH_CHUNK_SIZE));
+    if (!chunk.length) return NextResponse.json({ batch, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId) });
+    const config = (batch.configuration || {}) as Record<string, unknown>;
+    const existing = await adminDb().from('discovery_dry_run_batch_results').select('position').eq('batch_execution_id', input.batchExecutionId).in('position', chunk.map((_, i) => start + i));
+    if (existing.error) return NextResponse.json({ error: 'Não foi possível verificar o estado do chunk.' }, { status: 500 });
+    if ((existing.data || []).length === chunk.length) {
+      const updated = await getPersistedBatch(adminDb(), input.batchExecutionId);
+      return NextResponse.json({ batch: updated, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId), chunk: { status: 'already_persisted', candidatesCompleted: chunk.length } });
+    }
+    const report = await runDiscoveryDryRun({ client: adminDb(), candidateIds: chunk, limit: chunk.length, enableResearch: config.enableResearch !== false, researchLimit: chunk.length, concurrency: 1, allowReprocessExtracted: config.allowReprocessExtracted === true, dryRunExecutionId: crypto.randomUUID() });
+    if (report.items.length !== chunk.length) {
+      await adminDb().from('discovery_dry_run_batches').update({ status: 'partially_completed', error: 'chunk_cardinality_mismatch', updated_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId);
+      return NextResponse.json({ error: 'chunk_cardinality_mismatch', expectedCount: chunk.length, returnedCount: report.items.length, batch: await getPersistedBatch(adminDb(), input.batchExecutionId) }, { status: 409 });
+    }
+    await persistBatchChunk(adminDb(), batch, report.items as unknown as Array<Record<string, unknown>>, chunk.map((_, i) => start + i));
+    const updated = await getPersistedBatch(adminDb(), input.batchExecutionId); return NextResponse.json({ batch: updated, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId), chunk: report });
+  }
   if (input.action !== 'dry-run-batch-selected' && input.researchLimit !== undefined && input.researchLimit > 10) {
     return NextResponse.json({ error: 'research_limit_exceeded_for_action' }, { status: 400 });
   }
@@ -122,6 +162,15 @@ export async function POST(request: Request) {
         const report = await runSelectiveDryRunBatch({ client, candidateIds: validated.candidateIds, enableResearch: input.enableResearch !== false, researchLimit: validated.validatedCount, concurrency: 1, allowReprocessExtracted: input.allowReprocessExtracted === true });
         return NextResponse.json({ requestedCount: validated.requestedCount, validatedCount: validated.validatedCount, candidateIds: validated.candidateIds, report });
       } catch (validationError) { return NextResponse.json({ error: safeError(validationError) }, { status: 400 }); }
+    }
+    if (input.action === 'dry-run-batch-start') {
+      const ids = input.candidateIds || [];
+      const { data: existing, error } = await client.from('discovery_candidates').select('id').in('id', ids);
+      if (error) return NextResponse.json({ error: 'Não foi possível validar candidatos.' }, { status: 500 });
+      const validated = validateBatchCandidateIds(ids, (existing || []).map(row => String(row.id)));
+      const evidenceFirst = await resolveEvidenceFirstResearchFlag({ client });
+      const batch = await createPersistedBatch(client, validated.candidateIds, { chunkSize: 2, concurrency: 1, enableResearch: input.enableResearch !== false, researchLimit: validated.validatedCount, allowReprocessExtracted: input.allowReprocessExtracted === true, evidenceFirstEnabled: evidenceFirst.enabled, evidenceFirstSource: evidenceFirst.source });
+      return NextResponse.json({ batchExecutionId: batch.batch_execution_id, status: batch.status, totalCount: batch.total_count, processedCount: 0 });
     }
     if (input.action === 'research-diagnostic') {
       if (!input.candidateIds || input.candidateIds.length !== 1) return NextResponse.json({ error: 'research-diagnostic exige exatamente um candidateId.' }, { status: 400 });
