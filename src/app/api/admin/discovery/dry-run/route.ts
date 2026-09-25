@@ -144,8 +144,10 @@ export async function POST(request: Request) {
       }
     }
     if (input.action === 'dry-run-selected') {
-      const candidateIds = [...new Set(input.candidateIds || [])];
+      const rawCandidateIds = input.candidateIds || [];
+      const candidateIds = [...new Set(rawCandidateIds)];
       if (!candidateIds.length) return NextResponse.json({ error: 'candidateIds é obrigatório.' }, { status: 400 });
+      if (rawCandidateIds.length !== candidateIds.length) return NextResponse.json({ error: 'candidateIds duplicados.' }, { status: 400 });
       if (candidateIds.length > 10) return NextResponse.json({ error: 'Máximo de 10 candidatos.' }, { status: 400 });
       const { data: existing, error } = await client.from('discovery_candidates').select('id').in('id', candidateIds);
       if (error) return NextResponse.json({ error: 'Não foi possível validar candidatos.' }, { status: 500 });
@@ -203,3 +205,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: safeError(error) }, { status: 500 });
   }
 }
+
