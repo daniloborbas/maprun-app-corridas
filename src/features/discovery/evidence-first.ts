@@ -2,9 +2,9 @@ import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 import type { ResearchInput, ResearchSourceType, RaceResearchResult } from './research';
 import { fetchSafeDiscoveryText, normalizeDiscoveryUrl, type DiscoveryProviderContext } from './url-discovery';
 import type { DiscoverySource } from './types';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { classifyRegistrationUrlSemantic } from '@/features/events/registration';
 import OpenAI from 'openai';
+import type { SupabaseClient } from '@supabase/supabase-js';
 interface ResearchResponsesClient { responses: { create: (input: Record<string, unknown>, options?: { signal?: AbortSignal }) => Promise<unknown> } }
 
 export type EvidenceEditionMatch = 'same_edition' | 'probable_same_edition' | 'different_edition' | 'unknown';
@@ -103,6 +103,17 @@ export async function resolveRaceEvidence(client: EvidenceResolverClient, reques
   return { value: response.output_text ? JSON.parse(response.output_text) : null, inputTokens, outputTokens, totalTokens: inputTokens === null || outputTokens === null ? null : inputTokens + outputTokens };
 }
 export function isEvidenceFirstResearchEnabled(env: Partial<NodeJS.ProcessEnv> = process.env): boolean { return env.EVIDENCE_FIRST_RESEARCH_ENABLED === 'true'; }
+export type EvidenceFirstFlagState = { enabled: boolean; source: 'runtime'|'environment'|'default' };
+export async function resolveEvidenceFirstResearchFlag(options: { client?: SupabaseClient; env?: Partial<NodeJS.ProcessEnv> } = {}): Promise<EvidenceFirstFlagState> {
+  const env = options.env || process.env;
+  try {
+    const client = options.client || (await import('@/lib/supabase/admin')).adminDb();
+    const { data, error } = await client.from('system_feature_flags').select('enabled').eq('key', 'evidence_first_research').maybeSingle();
+    if (!error && data && typeof data.enabled === 'boolean') return { enabled: data.enabled, source: 'runtime' };
+  } catch { /* fail closed to the explicit environment fallback */ }
+  if (env.EVIDENCE_FIRST_RESEARCH_ENABLED === 'true') return { enabled: true, source: 'environment' };
+  return { enabled: false, source: 'default' };
+}
 export function aggregateResearchTokens(rows: Array<{ inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null }>) { const inputTokens = rows.reduce((sum, row) => sum + (row.inputTokens || 0), 0); const outputTokens = rows.reduce((sum, row) => sum + (row.outputTokens || 0), 0); return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens }; }
 
 export async function collectEvidenceFirstDocuments(input: ResearchInput & { knownUrls?: string[] }, source: DiscoverySource, options: { fetcher?: RaceEvidenceFetcher; context?: DiscoveryProviderContext } = {}) {
@@ -164,4 +175,5 @@ export function createOpenAIEvidenceResolver(options: { client?: ResearchRespons
     }
   };
 }
+
 

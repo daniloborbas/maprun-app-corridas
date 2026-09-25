@@ -4,7 +4,7 @@ import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 import { adminDb } from '@/lib/supabase/admin';
 import { classifyRegistrationUrlSemantic } from '@/features/events/registration';
 import { hasStrongCandidateIdentity as strongCandidateIdentity } from './identity';
-import { createOpenAIEvidenceResolver, isEvidenceFirstResearchEnabled, researchCandidateEvidenceFirst, type EvidenceFirstTelemetry } from './evidence-first';
+import { createOpenAIEvidenceResolver, resolveEvidenceFirstResearchFlag, researchCandidateEvidenceFirst, type EvidenceFirstTelemetry } from './evidence-first';
 
 export interface ResearchInput { event: ExtractedRaceEvent; sourceUrl: string; sourceName?: string; }
 export type ResearchSourceType = 'official_event'|'official_organizer'|'registration_platform'|'regulation'|'government'|'official_social'|'race_calendar'|'photo_platform'|'other';
@@ -208,8 +208,8 @@ export const researchOutputSchema = z.object({ facts: z.record(z.string(), z.unk
 export async function researchAndEnrichCandidate(candidateId: string, input: ResearchInput, provider: RaceResearchProvider | undefined = undefined, options: { maxQueries?: number; maxSources?: number; client?: ReturnType<typeof adminDb>; onPersistenceStart?: () => Promise<void>; dryRunExecutionId?: string; executionStartedAt?: string } = {}) {
   const started = Date.now();
   if (!shouldResearchEvent(input.event)) return { status: 'skipped' as const, reason: 'research_not_needed', durationMs: Date.now() - started };
-  const evidenceFirst = isEvidenceFirstResearchEnabled();
   const client = options.client || adminDb();
+  const evidenceFirst = (await resolveEvidenceFirstResearchFlag({ client })).enabled;
   const legacyProvider = provider || (await import('./openai-research-provider')).createRaceResearchProvider({ maxQueries: options.maxQueries, maxSources: options.maxSources });
   if (evidenceFirst && !process.env.OPENAI_API_KEY) throw new Error('evidence_resolver_unavailable');
   const result = evidenceFirst ? await researchCandidateEvidenceFirst(input, { client, fallback: legacyProvider, resolve: createOpenAIEvidenceResolver() }) : await legacyProvider.research({ queries: buildResearchQueries(input, options.maxQueries ?? 4), known: input, maxSources: options.maxSources ?? 8 });
