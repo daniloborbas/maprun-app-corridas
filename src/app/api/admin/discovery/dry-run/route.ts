@@ -144,7 +144,7 @@ export async function POST(request: Request) {
     await persistBatchChunk(adminDb(), batch, report.items as unknown as Array<Record<string, unknown>>, chunk.map((_, i) => start + i));
     const updated = await getPersistedBatch(adminDb(), input.batchExecutionId); return NextResponse.json({ batch: updated, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId), chunk: report });
   }
-  if (input.action !== 'dry-run-batch-selected' && input.researchLimit !== undefined && input.researchLimit > 10) {
+  if (!['dry-run-batch-selected', 'dry-run-batch-start'].includes(input.action) && input.researchLimit !== undefined && input.researchLimit > 10) {
     return NextResponse.json({ error: 'research_limit_exceeded_for_action' }, { status: 400 });
   }
   if ((input.action === 'dry-run' || input.action === 'discover-and-dry-run' || input.action === 'dry-run-batch-selected' || input.action === 'research-diagnostic') && input.enableResearch !== false) {
