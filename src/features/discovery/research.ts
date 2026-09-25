@@ -53,6 +53,12 @@ export function contentQualityScore(event: ExtractedRaceEvent, metadata: Record<
   const present = Object.entries(weights).reduce((sum, [field, weight]) => { const value = event[field as keyof ExtractedRaceEvent] ?? metadata[field]; return sum + (value && (!Array.isArray(value) || value.length) ? weight : 0); }, 0);
   return Math.round((present / total) * 100);
 }
+export function researchSourceMetrics(result: Pick<RaceResearchResult, 'sources'|'rawSourcesCount'|'rejectedSources'>) {
+  const uniqueSourcesCount = result.sources.length;
+  const rawSourcesCount = result.rawSourcesCount ?? uniqueSourcesCount;
+  const rejectedSourcesCount = result.rejectedSources?.length ?? 0;
+  return { rawSourcesCount, uniqueSourcesCount, acceptedSourcesCount: uniqueSourcesCount, rejectedSourcesCount, duplicateSourcesCount: Math.max(0, rawSourcesCount - uniqueSourcesCount - rejectedSourcesCount) };
+}
 export function generateResearchEditorial(event: ExtractedRaceEvent, metadata: Record<string, unknown> = {}) {
   const location = [event.city, event.state].filter(Boolean).join(' / ');
   const shortDescription = [event.name, location, event.date].filter(Boolean).join(' · ');
@@ -70,11 +76,9 @@ export async function researchAndEnrichCandidate(candidateId: string, input: Res
   const editorial = generateResearchEditorial(merged, result.facts);
   const enriched = { ...result, researchConfidence: result.researchConfidence || researchConfidence(result), shortDescription: editorial.shortDescription, longDescription: editorial.longDescription };
   const client = options.client || adminDb();
-  const uniqueSources = result.sources.length;
-  const rawSources = result.rawSourcesCount ?? uniqueSources;
+  const metrics = researchSourceMetrics(result);
   const rejectedSources = result.rejectedSources ?? [];
-  const duplicateSources = Math.max(0, rawSources - uniqueSources - rejectedSources.length);
-  const { error } = result.status === 'completed' ? await client.from('discovery_candidate_enrichments').upsert({ candidate_id: candidateId, base_event: input.event, enriched_event: merged, research_sources: { accepted: result.sources, rejected: rejectedSources }, field_evidence: result.fieldEvidence, conflicts: result.conflicts, missing_fields: result.missingFields, research_confidence: enriched.researchConfidence, content_quality_score: contentQualityScore(merged, result.facts), short_description: enriched.shortDescription, long_description: enriched.longDescription, model: result.model || null, input_tokens: result.inputTokens || null, output_tokens: result.outputTokens || null, total_tokens: (result.inputTokens || 0) + (result.outputTokens || 0) || null, research_metadata: { rawSourcesCount: rawSources, uniqueSourcesCount: uniqueSources, acceptedSourcesCount: uniqueSources, rejectedSourcesCount: rejectedSources.length, duplicateSourcesCount: duplicateSources, webSearches: result.webSearches ?? 0, responseShape: result.responseShape ?? {} } }, { onConflict: 'candidate_id' }) : { error: null };
+  const { error } = result.status === 'completed' ? await client.from('discovery_candidate_enrichments').upsert({ candidate_id: candidateId, base_event: input.event, enriched_event: merged, research_sources: { accepted: result.sources, rejected: rejectedSources }, field_evidence: result.fieldEvidence, conflicts: result.conflicts, missing_fields: result.missingFields, research_confidence: enriched.researchConfidence, content_quality_score: contentQualityScore(merged, result.facts), short_description: enriched.shortDescription, long_description: enriched.longDescription, model: result.model || null, input_tokens: result.inputTokens || null, output_tokens: result.outputTokens || null, total_tokens: (result.inputTokens || 0) + (result.outputTokens || 0) || null, research_metadata: { ...metrics, webSearches: result.webSearches ?? 0, responseShape: result.responseShape ?? {} } }, { onConflict: 'candidate_id' }) : { error: null };
   if (error) throw new Error('Não foi possível persistir o enrichment de pesquisa.');
   return { status: result.status, candidateId, enrichedEvent: merged, research: enriched, durationMs: Date.now() - started };
 }

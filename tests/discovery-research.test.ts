@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { buildResearchQueries, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, researchConfidence, shouldResearchEvent, sourceMatchScore, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
+import { buildResearchQueries, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 
 const event: ExtractedRaceEvent = { name: 'Corrida Teste', date: '2026-10-10', startTime: null, city: 'Itajubá', state: 'MG', venue: null, address: null, distances: [], price: null, organizerName: null, registrationUrl: null, coverImageUrl: null };
@@ -24,6 +24,9 @@ describe('discovery research', () => {
   it('calculates separate research and content scores', () => {
     expect(researchConfidence(result)).toBe(100);
     expect(contentQualityScore({ ...event, startTime: '07:00', distances: ['5 km'] })).toBeGreaterThan(contentQualityScore(event));
+  });
+  it('calculates accepted, rejected, and duplicate source counts', () => {
+    expect(researchSourceMetrics({ sources: [source, { ...source, url: 'https://official.example/other' }], rawSourcesCount: 5, rejectedSources: [{ url: 'https://other.example', reason: 'mismatch' }] })).toEqual({ rawSourcesCount: 5, uniqueSourcesCount: 2, acceptedSourcesCount: 2, rejectedSourcesCount: 1, duplicateSourcesCount: 2 });
   });
   it('writes editorial text only from confirmed facts', () => {
     const editorial = generateResearchEditorial({ ...event, startTime: '07:00', distances: ['5 km'] });
