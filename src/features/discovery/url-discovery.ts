@@ -66,6 +66,10 @@ async function fetchText(rawUrl: string, source: DiscoverySource, context: Disco
     return body;
   } finally { clearTimeout(timer); }
 }
+/** Shared guarded fetch for evidence consumers; keeps the discovery SSRF/size/timeout policy in one place. */
+export async function fetchSafeDiscoveryText(rawUrl: string, source: DiscoverySource, context: DiscoveryProviderContext = {}): Promise<string> {
+  return fetchText(rawUrl, source, context);
+}
 
 function xmlLocations(xml: string) { return [...xml.matchAll(/<loc[^>]*>\s*([\s\S]*?)\s*<\/loc>/gi)].map((match) => textFromHtml(match[1])); }
 function addUnique(result: DiscoveredUrl[], item: DiscoveredUrl, limit = MAX_URLS) { if (result.length < limit && !result.some((existing) => existing.url === item.url)) result.push(item); }
