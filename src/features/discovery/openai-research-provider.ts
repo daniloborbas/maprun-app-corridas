@@ -17,7 +17,7 @@ export function getResearchModelConfiguration() {
 const researchFields = ['name', 'date', 'startTime', 'city', 'state', 'venue', 'address', 'distances', 'price', 'registrationUrl', 'organizerName', 'kit', 'packetPickup', 'course', 'categories', 'awards', 'regulation', 'notes'] as const;
 const fieldProperties = Object.fromEntries(researchFields.map((field) => [field, { type: ['string', 'null'] as const }])) as Record<string, { type: readonly ['string', 'null'] }>;
 const evidenceItemSchema = { type: 'object', additionalProperties: false, properties: { value: { type: 'string' }, sourceUrl: { type: 'string' }, confidence: { type: 'number' } }, required: ['value', 'sourceUrl', 'confidence'] } as const;
-const outputSchema = {
+export const raceResearchOutputSchema = {
   type: 'object', additionalProperties: false,
   properties: {
     facts: { type: 'object', additionalProperties: false, properties: fieldProperties, required: researchFields },
@@ -28,14 +28,14 @@ const outputSchema = {
   },
   required: ['facts', 'evidence', 'conflicts', 'missingFields', 'confidence'],
 } as const;
-const responseSchema = z.object({
+export const raceResearchResponseSchema = z.object({
   facts: z.object(Object.fromEntries(researchFields.map((field) => [field, z.string().nullable()]))).strict(),
   evidence: z.object(Object.fromEntries(researchFields.map((field) => [field, z.array(z.object({ value: z.string(), sourceUrl: z.string(), confidence: z.number() }))]))).strict(),
   conflicts: z.array(z.object({ field: z.string(), values: z.array(z.string()), severity: z.enum(['low', 'medium', 'high']) })),
   missingFields: z.array(z.string()),
   confidence: z.number().min(0).max(100),
 }).strict();
-function normalizeResearchPayload(value: unknown) {
+export function normalizeResearchPayload(value: unknown) {
   const raw = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   const rawFacts = raw.facts && typeof raw.facts === 'object' ? raw.facts as Record<string, unknown> : {};
   const rawEvidence = raw.evidence && typeof raw.evidence === 'object' ? raw.evidence as Record<string, unknown> : {};
@@ -119,11 +119,11 @@ export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const response = await this.client.responses.create({ model: this.model, reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'low' }], tool_choice: 'required', include: ['web_search_call.action.sources'], instructions: researchInstructions(known, queries), input: queries.join('\n'), text: { format: { type: 'json_schema', name: 'maprun_race_research', strict: true, schema: outputSchema } } }, { signal: controller.signal });
+      const response = await this.client.responses.create({ model: this.model, reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'low' }], tool_choice: 'required', include: ['web_search_call.action.sources'], instructions: researchInstructions(known, queries), input: queries.join('\n'), text: { format: { type: 'json_schema', name: 'maprun_race_research', strict: true, schema: raceResearchOutputSchema } } }, { signal: controller.signal });
       const rawText = (response as { output_text?: unknown }).output_text;
       if (typeof rawText !== 'string' || !rawText.trim()) throw new ResearchProviderError('invalid_response', 'A pesquisa não retornou JSON estruturado.');
       let parsed: unknown; try { parsed = JSON.parse(rawText); } catch { throw new ResearchProviderError('invalid_response', 'A pesquisa retornou JSON inválido.'); }
-      const validated = responseSchema.safeParse(normalizeResearchPayload(parsed));
+  const validated = raceResearchResponseSchema.safeParse(normalizeResearchPayload(parsed));
       if (!validated.success) throw new ResearchProviderError('invalid_response', 'A pesquisa retornou dados fora do schema.');
       const extracted = extractWebSearchSources(response);
       const sources = extracted.sources.slice(0, this.maxSources);
