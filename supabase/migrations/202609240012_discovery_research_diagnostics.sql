@@ -25,5 +25,14 @@ create table if not exists public.discovery_research_diagnostics (
 );
 create index if not exists discovery_research_diagnostics_candidate_idx on public.discovery_research_diagnostics(candidate_id, started_at desc);
 create index if not exists discovery_research_diagnostics_running_idx on public.discovery_research_diagnostics(candidate_id, status, started_at desc);
+create or replace function public.update_discovery_research_diagnostics_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
 drop trigger if exists set_discovery_research_diagnostics_updated_at on public.discovery_research_diagnostics;
-create trigger set_discovery_research_diagnostics_updated_at before update on public.discovery_research_diagnostics for each row execute function public.set_updated_at();
+create trigger set_discovery_research_diagnostics_updated_at before update on public.discovery_research_diagnostics for each row execute function public.update_discovery_research_diagnostics_updated_at();
