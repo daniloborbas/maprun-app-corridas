@@ -3,7 +3,8 @@ import type { adminDb } from '@/lib/supabase/admin';
 type Client = ReturnType<typeof adminDb>;
 export async function createPersistedBatch(client: Client, candidateIds: string[], configuration: Record<string, unknown>) {
   const id = crypto.randomUUID();
-  const { data, error } = await client.from('discovery_dry_run_batches').insert({ batch_execution_id: id, status: 'running', candidate_ids: candidateIds, total_count: candidateIds.length, configuration, started_at: new Date().toISOString() }).select().single();
+  const startedAt = new Date().toISOString();
+  const { data, error } = await client.from('discovery_dry_run_batches').insert({ batch_execution_id: id, status: 'pending', candidate_ids: candidateIds, total_count: candidateIds.length, configuration: { ...configuration, startRequestAt: startedAt }, started_at: null }).select().single();
   if (error) throw error; return data;
 }
 export async function getPersistedBatch(client: Client, id: string) { const { data, error } = await client.from('discovery_dry_run_batches').select('*').eq('batch_execution_id', id).maybeSingle(); if (error) throw error; return data; }

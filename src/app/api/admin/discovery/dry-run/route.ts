@@ -164,13 +164,22 @@ export async function POST(request: Request) {
       } catch (validationError) { return NextResponse.json({ error: safeError(validationError) }, { status: 400 }); }
     }
     if (input.action === 'dry-run-batch-start') {
+      const startRequestAt = new Date().toISOString();
       const ids = input.candidateIds || [];
       const { data: existing, error } = await client.from('discovery_candidates').select('id').in('id', ids);
       if (error) return NextResponse.json({ error: 'Não foi possível validar candidatos.' }, { status: 500 });
       const validated = validateBatchCandidateIds(ids, (existing || []).map(row => String(row.id)));
       const evidenceFirst = await resolveEvidenceFirstResearchFlag({ client });
-      const batch = await createPersistedBatch(client, validated.candidateIds, { chunkSize: 2, concurrency: 1, enableResearch: input.enableResearch !== false, researchLimit: validated.validatedCount, allowReprocessExtracted: input.allowReprocessExtracted === true, evidenceFirstEnabled: evidenceFirst.enabled, evidenceFirstSource: evidenceFirst.source });
-      return NextResponse.json({ batchExecutionId: batch.batch_execution_id, status: batch.status, totalCount: batch.total_count, processedCount: 0 });
+      const validationFinishedAt = new Date().toISOString();
+      try {
+        const batch = await createPersistedBatch(client, validated.candidateIds, { chunkSize: 2, concurrency: 1, enableResearch: input.enableResearch !== false, researchLimit: validated.validatedCount, allowReprocessExtracted: input.allowReprocessExtracted === true, evidenceFirstEnabled: evidenceFirst.enabled, evidenceFirstSource: evidenceFirst.source, validationFinishedAt });
+        const insertFinishedAt = new Date().toISOString();
+        return NextResponse.json({ batchExecutionId: batch.batch_execution_id, status: batch.status, totalCount: batch.total_count, processedCount: 0, telemetry: { startRequestAt, validationFinishedAt, insertFinishedAt, responseAt: new Date().toISOString(), durationMs: Date.now() - Date.parse(startRequestAt) } }, { status: 201 });
+      } catch (error) {
+        const details = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+        console.error('[discovery-batch-start] persistence failed', { code: details.code, message: details.message, details: details.details, hint: details.hint });
+        return NextResponse.json({ error: 'batch_persistence_failed', message: 'Não foi possível criar o batch.', details: { code: details.code || null, message: details.message || null, details: details.details || null, hint: details.hint || null } }, { status: 503 });
+      }
     }
     if (input.action === 'research-diagnostic') {
       if (!input.candidateIds || input.candidateIds.length !== 1) return NextResponse.json({ error: 'research-diagnostic exige exatamente um candidateId.' }, { status: 400 });
