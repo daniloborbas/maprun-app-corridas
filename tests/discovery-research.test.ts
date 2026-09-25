@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { buildResearchQueries, classifyResearchSource, classifyEditionMatch, sourceEvidenceWeight, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, normalizeConfidenceScore, normalizeBrazilianState, normalizeCity, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, auditGeneratedDescription, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
+import { buildResearchQueries, researchSearchTelemetry, classifyResearchSource, classifyEditionMatch, sourceEvidenceWeight, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, normalizeConfidenceScore, normalizeBrazilianState, normalizeCity, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, auditGeneratedDescription, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
+import { selectResearchSources } from '@/features/discovery/openai-research-provider';
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 
 const event: ExtractedRaceEvent = { name: 'Corrida Teste', date: '2026-10-10', startTime: null, city: 'Itajubá', state: 'MG', venue: null, address: null, distances: [], price: null, organizerName: null, registrationUrl: null, coverImageUrl: null };
@@ -13,7 +14,12 @@ describe('discovery research', () => {
     expect(shouldResearchEvent(event)).toBe(true);
     expect(shouldResearchEvent({ ...event, startTime: '07:00', venue: 'Centro', address: 'Rua A', distances: ['5 km'], price: '20', registrationUrl: 'https://example.com/i', organizerName: 'Org' }, { kit: 'Camiseta', packetPickup: 'Local', course: 'Rua', categories: 'Adulto', awards: 'Medalha', regulation: 'https://example.com/reg', notes: 'Info' })).toBe(false);
   });
-  it('builds at most four focused queries', () => expect(buildResearchQueries(input, 4)).toHaveLength(4));
+  it('builds two normal phased queries and reserves a third for conflicts', () => { expect(buildResearchQueries(input)).toHaveLength(2); expect(buildResearchQueries(input, 3)).toHaveLength(3); });
+  it('prioritizes one source per domain and records search phase telemetry', () => {
+    const weak = { ...source, sourceType: 'race_calendar' as const, trustLevel: 'C' as const, url: 'https://official.example/calendar' };
+    expect(selectResearchSources([weak, source], 5)).toEqual([source]);
+    expect(researchSearchTelemetry(input, buildResearchQueries(input, 2)).map(item => item.phase)).toEqual(['identity', 'authority']);
+  });
   it('rejects a source from a previous edition', () => expect(sourceMatchScore(input, source, { date: '2025-10-10', city: 'Itajubá' })).toBe(0));
   it('accepts matching identity and scores trustworthy evidence', () => expect(sourceMatchScore(input, source, { name: 'Corrida Teste', date: '2026-10-10', city: 'Itajubá', state: 'MG' })).toBeGreaterThanOrEqual(95));
   it('classifies and resolves the Aterradinho critical date conflict without silent replacement', () => {

@@ -2,7 +2,7 @@ import 'server-only';
 import OpenAI from 'openai';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { buildResearchQueries, classifyResearchSource, normalizeConfidenceScore, type RaceResearchProvider, type RaceResearchResult, type ResearchInput, type ResearchSource } from './research';
+import { buildResearchQueries, classifyResearchSource, normalizeConfidenceScore, sourceEvidenceWeight, researchSearchTelemetry, type RaceResearchProvider, type RaceResearchResult, type ResearchInput, type ResearchSource } from './research';
 
 export type ResearchProviderErrorCode = 'missing_api_key'|'timeout'|'rate_limit'|'authentication'|'invalid_response'|'web_search_error'|'provider_error'|'openai_api_error'|'network_error'|'abort_error'|'invalid_request';
 export type ResearchErrorPhase = 'configuration'|'request_build'|'responses_api'|'web_search'|'structured_output'|'citation_parsing'|'source_validation'|'persistence';
@@ -114,6 +114,11 @@ export function extractWebSearchSources(response: unknown): { sources: ResearchS
   }
   return { sources, rawSourcesCount: sources.length, webSearches, responseShape: { outputItemTypes: output.map((item) => (item as { type?: unknown })?.type).filter((value): value is string => typeof value === 'string'), webSearchCalls: webSearches, messageItems: output.filter((item) => (item as { type?: string })?.type === 'message').length, annotations: annotationsCount, annotationTypes: [...annotationTypes], status: (response as { status?: unknown })?.status || null, incompleteDetails: (response as { incomplete_details?: unknown })?.incomplete_details || null } };
 }
+export function selectResearchSources(sources: ResearchSource[], max = 5) {
+  const families = new Map<string, ResearchSource>();
+  for (const source of sources) { let domain = source.domain || ''; try { domain = new URL(source.url).hostname.replace(/^www\./, ''); } catch { /* keep source domain */ } const current = families.get(domain); if (!current || sourceEvidenceWeight(source) > sourceEvidenceWeight(current)) families.set(domain, source); }
+  return [...families.values()].sort((a, b) => sourceEvidenceWeight(b) - sourceEvidenceWeight(a)).slice(0, max);
+}
 
 export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
   private readonly client: ResearchResponsesClient;
@@ -125,8 +130,8 @@ export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
     this.client = options.client || new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) as unknown as ResearchResponsesClient;
     this.model = options.model || getResearchModelConfiguration();
     this.timeoutMs = options.timeoutMs || 45_000;
-    this.maxSources = options.maxSources || 8;
-    this.maxQueries = options.maxQueries || 4;
+    this.maxSources = options.maxSources || 5;
+    this.maxQueries = options.maxQueries || 2;
   }
   async diagnostic(known: ResearchInput) {
     const started = Date.now();
@@ -173,13 +178,15 @@ export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
   const validated = raceResearchResponseSchema.safeParse(normalizeResearchPayload(parsed));
       if (!validated.success) throw new ResearchProviderError('invalid_response', 'A pesquisa retornou dados fora do schema.');
       const extracted = extractWebSearchSources(response);
-      const sources = extracted.sources.slice(0, this.maxSources);
+      const sources = selectResearchSources(extracted.sources, this.maxSources);
       const sourceByUrl = new Map(sources.map((source) => [source.url, source]));
       const fieldEvidence: Record<string, { value: string; source: ResearchSource; confidence: number }[]> = {};
       for (const [field, evidence] of Object.entries(validated.data.evidence)) fieldEvidence[field] = evidence.flatMap((item) => { const source = sourceByUrl.get(item.sourceUrl); return source ? [{ value: item.value, source, confidence: item.confidence }] : []; });
       const facts = Object.fromEntries(Object.entries(validated.data.facts).filter(([, value]) => Object.keys(fieldEvidence).some((field) => field in validated.data.facts && fieldEvidence[field]?.some((item) => item.value === value))));
       const reliable = sources.length > 0 && Object.keys(facts).length > 0;
-      return { sources, facts, fieldEvidence, conflicts: validated.data.conflicts.map((conflict) => ({ ...conflict, values: conflict.values.map((value) => ({ value, source: sources[0] })).filter((item) => item.source) })), missingFields: validated.data.missingFields, researchConfidence: reliable ? validated.data.confidence : 0, durationMs: Date.now() - started, status: reliable ? 'completed' : extracted.rawSourcesCount ? 'no_matching_sources' : 'no_sources', shortDescription: '', longDescription: '', model: this.model, inputTokens: (response as { usage?: { input_tokens?: number } }).usage?.input_tokens, outputTokens: (response as { usage?: { output_tokens?: number } }).usage?.output_tokens, rawSourcesCount: extracted.rawSourcesCount, rejectedSources: extracted.rawSourcesCount && !sources.length ? extracted.sources.map((source) => ({ url: source.url, reason: 'source_validation', score: 0 })) : [], webSearches: extracted.webSearches, responseShape: extracted.responseShape };
+      const inputTokens = (response as { usage?: { input_tokens?: number } }).usage?.input_tokens;
+      const outputTokens = (response as { usage?: { output_tokens?: number } }).usage?.output_tokens;
+      return { sources, facts, fieldEvidence, conflicts: validated.data.conflicts.map((conflict) => ({ ...conflict, values: conflict.values.map((value) => ({ value, source: sources[0] })).filter((item) => item.source) })), missingFields: validated.data.missingFields, researchConfidence: reliable ? validated.data.confidence : 0, durationMs: Date.now() - started, status: reliable ? 'completed' : extracted.rawSourcesCount ? 'no_matching_sources' : 'no_sources', shortDescription: '', longDescription: '', model: this.model, inputTokens, outputTokens, rawSourcesCount: extracted.rawSourcesCount, rejectedSources: extracted.rawSourcesCount && !sources.length ? extracted.sources.map((source) => ({ url: source.url, reason: 'source_validation', score: 0 })) : [], webSearches: extracted.webSearches, responseShape: { ...extracted.responseShape, searchTelemetry: researchSearchTelemetry(known, queries), sourceBudget: this.maxSources, tokenBudget: { input: inputTokens ?? null, output: outputTokens ?? null, total: (inputTokens || 0) + (outputTokens || 0), exceeded: (inputTokens || 0) > 10000 || (outputTokens || 0) > 2000 } } };
     } catch (error) {
       if (error instanceof ResearchProviderError) throw error;
       if (controller.signal.aborted) throw new ResearchProviderError('timeout', 'Tempo limite da pesquisa excedido.', { phase: 'responses_api', errorName: 'AbortError', constructorName: 'DOMException' });

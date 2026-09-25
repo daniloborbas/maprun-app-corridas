@@ -58,10 +58,14 @@ export function shouldResearchEvent(event: ExtractedRaceEvent, metadata: Record<
   });
   return missing.length > 0;
 }
-export function buildResearchQueries(input: ResearchInput, max = 4) {
+export function buildResearchQueries(input: ResearchInput, max = 2) {
   const base = [input.event.name, input.event.city, input.event.state, input.event.date?.slice(0, 4)].filter(Boolean).join(' ');
-  return [`"${base}"`, `"${base}" inscrições`, `"${base}" regulamento`, `"${base}" kit`].slice(0, Math.max(0, max));
+  const identity = `"${base}"`;
+  const authority = `"${base}" inscrição regulamento`;
+  const conflict = `"${base}" data horário cidade`;
+  return [identity, authority, conflict].slice(0, Math.min(Math.max(0, max), 3));
 }
+export function researchSearchTelemetry(input: ResearchInput, queries: string[]) { return queries.map((query, index) => ({ query, phase: index === 0 ? 'identity' : index === 1 ? 'authority' : 'conflict_resolution', reason: index === 0 ? 'confirm_event_identity' : index === 1 ? 'find_authoritative_source' : 'resolve_critical_fields', fieldsTargeted: index === 0 ? ['name', 'date', 'city', 'state'] : index === 1 ? ['registrationUrl', 'regulation', 'organizerName'] : ['date', 'startTime', 'city', 'venue'], resultCount: null })); }
 const trustRank = (value: 'A'|'B'|'C') => value === 'A' ? 3 : value === 'B' ? 2 : 1;
 const sourceTypeRank: Record<ResearchSourceType, number> = { official_event: 8, registration_platform: 7, official_organizer: 6, government: 5, official_social: 4, race_calendar: 3, photo_platform: 2, other: 1, regulation: 8 };
 export function sourceEvidenceWeight(source: ResearchSource) { return (sourceTypeRank[source.sourceType] || 1) * trustRank(source.trustLevel) * (Math.max(0, source.sourceMatchScore ?? 0) / 100 || 0.25); }
