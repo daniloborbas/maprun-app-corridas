@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { buildResearchQueries, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, normalizeConfidenceScore, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
+import { buildResearchQueries, classifyResearchSource, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, normalizeConfidenceScore, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, auditGeneratedDescription, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 
 const event: ExtractedRaceEvent = { name: 'Corrida Teste', date: '2026-10-10', startTime: null, city: 'Itajubá', state: 'MG', venue: null, address: null, distances: [], price: null, organizerName: null, registrationUrl: null, coverImageUrl: null };
@@ -25,6 +25,22 @@ describe('discovery research', () => {
     expect(decision.autoPublishEligible).toBe(false);
     expect(decision.replacements).toHaveLength(0);
     expect(matchResearchSources(raceInput, sources, diagnosticResult.facts).every((item) => item.classification)).toBe(true);
+    expect(decision.rejectionReasons).toContain('critical_conflict_date');
+    const editorial = generateResearchEditorial(raceInput.event, diagnosticResult.facts, decision.fieldResolutions);
+    expect(editorial.shortDescription).not.toContain('2026-10-24');
+    expect(editorial.longDescription).not.toContain('25 de outubro de 2026');
+    expect(editorial.longDescription).toContain('data da prova apresenta informações divergentes');
+  });
+  it('classifies source type and trust deterministically', () => {
+    expect(classifyResearchSource('https://www.portaldascorridas.com.br/event-details/x').sourceType).toBe('registration_platform');
+    expect(classifyResearchSource('https://corridabrasil.com/corrida/x').sourceType).toBe('race_calendar');
+    expect(classifyResearchSource('https://nogueiraafotografia.fotop.com.br/?lang=pt').sourceType).toBe('photo_platform');
+    expect(classifyResearchSource('https://corridabrasil.com/corrida/x').trustLevel).toBe('C');
+  });
+  it('blocks publication for unsupported editorial claims and audits claims', () => {
+    const audited = auditGeneratedDescription('A prova acontece em Itajubá / MG. Uma informação inventada.', event, {});
+    expect(audited.unsupportedClaims).toContain('Uma informação inventada');
+    expect(audited.autoPublishEligible).toBe(false);
   });
   it('does not count repeated URLs from one domain as independent evidence', () => {
     const repeated = { ...source, url: 'https://example.test/another' };

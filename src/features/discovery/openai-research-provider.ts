@@ -2,7 +2,7 @@ import 'server-only';
 import OpenAI from 'openai';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { buildResearchQueries, normalizeConfidenceScore, type RaceResearchProvider, type RaceResearchResult, type ResearchInput, type ResearchSource, type ResearchSourceType } from './research';
+import { buildResearchQueries, classifyResearchSource, normalizeConfidenceScore, type RaceResearchProvider, type RaceResearchResult, type ResearchInput, type ResearchSource } from './research';
 
 export type ResearchProviderErrorCode = 'missing_api_key'|'timeout'|'rate_limit'|'authentication'|'invalid_response'|'web_search_error'|'provider_error'|'openai_api_error'|'network_error'|'abort_error'|'invalid_request';
 export type ResearchErrorPhase = 'configuration'|'request_build'|'responses_api'|'web_search'|'structured_output'|'citation_parsing'|'source_validation'|'persistence';
@@ -63,7 +63,6 @@ export function normalizeResearchPayload(value: unknown) {
     confidence: normalizeConfidenceScore(raw.confidence),
   };
 }
-const sourceType = (url: string): ResearchSourceType => /regulamento/i.test(url) ? 'regulation' : /inscri|ticket|sympla/i.test(url) ? 'registration_platform' : 'other';
 const safeUrl = (value: unknown) => typeof value === 'string' && /^https?:\/\//i.test(value) ? value : null;
 
 export function sanitizeOpenAIError(error: unknown, fallbackCode: ResearchProviderErrorCode = 'provider_error') {
@@ -99,7 +98,7 @@ export function extractWebSearchSources(response: unknown): { sources: ResearchS
   const sources: ResearchSource[] = [];
   const output = (response as { output?: unknown[] })?.output || [];
   let webSearches = 0; let annotationsCount = 0; const annotationTypes = new Set<string>();
-  const add = (value: unknown, title: unknown) => { const url = safeUrl(value); if (!url) return; const normalized = url.split('#')[0]; if (sources.some((source) => source.url === normalized)) return; sources.push({ url: normalized, title: typeof title === 'string' ? title : normalized, sourceType: sourceType(normalized), trustLevel: 'C', retrievedAt: new Date().toISOString() }); };
+  const add = (value: unknown, title: unknown) => { const url = safeUrl(value); if (!url) return; const normalized = url.split('#')[0]; if (sources.some((source) => source.url === normalized)) return; const sourceTitle = typeof title === 'string' ? title : normalized; const classified = classifyResearchSource(normalized, sourceTitle); sources.push({ url: normalized, title: sourceTitle, sourceType: classified.sourceType, trustLevel: classified.trustLevel, domain: classified.domain, technicalOrigin: 'web_search_source', retrievedAt: new Date().toISOString() }); };
   for (const item of output) {
     const typed = item as { type?: string; action?: { sources?: unknown[] } };
     if (typed.type === 'web_search_call') { webSearches++; for (const source of typed.action?.sources || []) { const value = source as { url?: unknown; title?: unknown }; add(value.url, value.title); } }

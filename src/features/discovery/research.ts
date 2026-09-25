@@ -4,8 +4,8 @@ import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 import { adminDb } from '@/lib/supabase/admin';
 
 export interface ResearchInput { event: ExtractedRaceEvent; sourceUrl: string; sourceName?: string; }
-export type ResearchSourceType = 'official_event'|'official_organizer'|'registration_platform'|'regulation'|'government'|'official_social'|'race_calendar'|'other';
-export interface ResearchSource { url: string; title: string; sourceType: ResearchSourceType; trustLevel: 'A'|'B'|'C'; retrievedAt: string; }
+export type ResearchSourceType = 'official_event'|'official_organizer'|'registration_platform'|'regulation'|'government'|'official_social'|'race_calendar'|'photo_platform'|'other';
+export interface ResearchSource { url: string; title: string; sourceType: ResearchSourceType; trustLevel: 'A'|'B'|'C'; retrievedAt: string; domain?: string; sourceMatchScore?: number; matchClassification?: SourceMatchClass; accepted?: boolean; rejectionReason?: string; technicalOrigin?: string; }
 export interface FieldEvidence { value: string; source: ResearchSource; confidence: number; }
 export interface ResearchConflict { field: string; values: { value: string; source: ResearchSource }[]; severity: 'low'|'medium'|'high'; }
 export interface RaceResearchResult { sources: ResearchSource[]; facts: Partial<ExtractedRaceEvent> & Record<string, unknown>; fieldEvidence: Record<string, FieldEvidence[]>; conflicts: ResearchConflict[]; missingFields: string[]; researchConfidence: number; durationMs: number; status: 'completed'|'no_sources'|'no_matching_sources'|'failed'; shortDescription: string; longDescription: string; model?: string; inputTokens?: number; outputTokens?: number; rawSourcesCount?: number; rejectedSources?: { url: string; reason: string; score?: number }[]; webSearches?: number; responseShape?: Record<string, unknown>; }
@@ -62,6 +62,18 @@ export function buildResearchQueries(input: ResearchInput, max = 4) {
   return [`"${base}"`, `"${base}" inscrições`, `"${base}" regulamento`, `"${base}" kit`].slice(0, Math.max(0, max));
 }
 const trustRank = (value: 'A'|'B'|'C') => value === 'A' ? 3 : value === 'B' ? 2 : 1;
+export function classifyResearchSource(url: string, title = ''): { sourceType: ResearchSourceType; trustLevel: 'A'|'B'|'C'; domain: string } {
+  let domain = '';
+  try { domain = new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch { /* invalid URLs are rejected upstream */ }
+  const text = `${domain} ${url} ${title}`.toLowerCase();
+  if (/fotop\.com|fotop\.net/.test(domain)) return { sourceType: 'photo_platform', trustLevel: 'C', domain };
+  if (/regulamento/.test(text)) return { sourceType: 'regulation', trustLevel: 'A', domain };
+  if (/inscri|ticket|sympla|portaldascorridas/.test(text)) return { sourceType: 'registration_platform', trustLevel: 'A', domain };
+  if (/prefeitura|\.gov\.br|federacao|confederacao/.test(text)) return { sourceType: 'government', trustLevel: 'B', domain };
+  if (/instagram|facebook|youtube/.test(domain)) return { sourceType: 'official_social', trustLevel: 'B', domain };
+  if (/corridabrasil|corrida1|vamucorrer|corridanarua/.test(domain)) return { sourceType: 'race_calendar', trustLevel: 'C', domain };
+  return { sourceType: 'other', trustLevel: 'C', domain };
+}
 export function sourceMatchScore(input: ResearchInput, source: ResearchSource, facts: Partial<ExtractedRaceEvent> & Record<string, unknown>) {
   if (facts.date && input.event.date && String(facts.date).slice(0, 4) !== input.event.date.slice(0, 4)) return 0;
   let score = 0;
@@ -71,7 +83,7 @@ export function sourceMatchScore(input: ResearchInput, source: ResearchSource, f
   if (facts.date && input.event.date && String(facts.date).slice(0, 10) === input.event.date.slice(0, 10)) score += 20;
   return Math.min(100, score + trustRank(source.trustLevel) - 1);
 }
-const sourcePriority = (source: ResearchSource) => ({ regulation: 8, official_event: 7, registration_platform: 6, official_organizer: 5, government: 4, official_social: 4, race_calendar: 3, other: 1 }[source.sourceType] || 1) * trustRank(source.trustLevel);
+const sourcePriority = (source: ResearchSource) => ({ regulation: 8, official_event: 7, registration_platform: 6, official_organizer: 5, government: 4, official_social: 4, race_calendar: 3, photo_platform: 2, other: 1 }[source.sourceType] || 1) * trustRank(source.trustLevel);
 export function classifySourceMatch(score: number): SourceMatchClass { return score >= 80 ? 'strong_match' : score >= 55 ? 'probable_match' : score >= 25 ? 'weak_match' : 'rejected'; }
 export function matchResearchSources(input: ResearchInput, sources: ResearchSource[], facts: Partial<ExtractedRaceEvent> & Record<string, unknown>): SourceMatch[] {
   return sources.map((source) => { const score = sourceMatchScore(input, source, facts); return { source, score, classification: classifySourceMatch(score), independentKey: new URL(source.url).hostname.replace(/^www\./, '') }; });
@@ -107,7 +119,8 @@ export function resolveRaceFieldEvidence(base: ExtractedRaceEvent, research: Rac
   const criticalConflict = Object.values(fieldResolutions).some((resolution) => resolution.criticalConflict);
   const factualConfidence = Math.round(Math.min(100, research.researchConfidence * (criticalConflict ? 0.7 : 1)));
   const quality = contentQualityScore(resolvedEvent, research.facts);
-  const rejectionReasons = [...(criticalConflict ? ['critical_conflict'] : []), ...(factualConfidence < 90 ? ['low_factual_confidence'] : []), ...(quality < 70 ? ['low_content_quality'] : [])];
+  const criticalReasons = [...new Set(Object.entries(fieldResolutions).filter(([, resolution]) => resolution.criticalConflict).map(([field]) => `critical_conflict_${field}`))];
+  const rejectionReasons = [...criticalReasons, ...(factualConfidence < 90 ? ['low_factual_confidence'] : []), ...(quality < 70 ? ['low_content_quality'] : [])];
   return { resolvedEvent, fieldResolutions, replacements, unresolvedConflicts, factualConfidence, contentQualityScore: quality, autoPublishEligible: !criticalConflict && factualConfidence >= 90 && quality >= 70 && Boolean(resolvedEvent.name && resolvedEvent.date && resolvedEvent.city && resolvedEvent.state && resolvedEvent.distances.length), rejectionReasons };
 }
 export function mergeRaceEvidence(base: ExtractedRaceEvent, research: RaceResearchResult): ExtractedRaceEvent {
@@ -126,16 +139,17 @@ export function researchSourceMetrics(result: Pick<RaceResearchResult, 'sources'
   const rejectedSourcesCount = result.rejectedSources?.length ?? 0;
   return { rawSourcesCount, uniqueSourcesCount, acceptedSourcesCount: uniqueSourcesCount, rejectedSourcesCount, duplicateSourcesCount: Math.max(0, rawSourcesCount - uniqueSourcesCount - rejectedSourcesCount) };
 }
-export function generateResearchEditorial(event: ExtractedRaceEvent, metadata: Record<string, unknown> = {}) {
+export function generateResearchEditorial(event: ExtractedRaceEvent, metadata: Record<string, unknown> = {}, resolutions: Record<string, FieldResolution> = {}) {
   const location = [event.city, event.state].filter(Boolean).join(' / ');
-  const shortDescription = [event.name, location, event.date].filter(Boolean).join(' · ');
-  const sections = [location && `A prova acontece em ${location}.`, event.startTime && `A largada está prevista para ${event.startTime}.`, event.distances.length && `Distâncias: ${event.distances.join(', ')}.`, event.registrationUrl && `Inscrições: ${event.registrationUrl}.`, metadata.kit && `Kit: ${metadata.kit}.`, metadata.packetPickup && `Retirada do kit: ${metadata.packetPickup}.`, metadata.course && `Percurso: ${metadata.course}.`].filter(Boolean);
+  const dateSafe = event.date && resolutions.date?.status !== 'conflicted' && resolutions.date?.status !== 'unresolved';
+  const shortDescription = [event.name, location, dateSafe ? event.date : null].filter(Boolean).join(' · ');
+  const sections = [location && `A prova acontece em ${location}.`, dateSafe ? null : resolutions.date ? 'A data da prova apresenta informações divergentes entre as fontes consultadas e ainda precisa ser confirmada.' : null, event.startTime && `A largada está prevista para ${event.startTime}.`, event.distances.length && `Distâncias: ${event.distances.join(', ')}.`, event.registrationUrl && `Inscrições: ${event.registrationUrl}.`, metadata.kit && `Kit: ${metadata.kit}.`, metadata.packetPickup && `Retirada do kit: ${metadata.packetPickup}.`, metadata.course && `Percurso: ${metadata.course}.`].filter(Boolean);
   return { shortDescription, longDescription: sections.join('\n\n') };
 }
 export function auditGeneratedDescription(description: string, event: ExtractedRaceEvent, resolvedEvidence: Record<string, FieldResolution> = {}) {
   const candidates = [event.name, event.date?.slice(0, 10), event.city, event.state, event.startTime, ...event.distances].filter(Boolean).map(String);
   const supportedClaims = candidates.filter((claim) => description.includes(claim));
-  const unsupportedClaims = description.split(/[.!?\n]+/).map((claim) => claim.trim()).filter(Boolean).filter((claim) => !candidates.some((value) => claim.includes(value)) && !/^(A prova acontece|A largada está prevista|Distâncias:|Inscrições:|Kit:|Retirada do kit:|Percurso:)/i.test(claim));
+  const unsupportedClaims = description.split(/[.!?\n]+/).map((claim) => claim.trim()).filter(Boolean).filter((claim) => !candidates.some((value) => claim.includes(value)) && !/^(A prova acontece|A data da prova apresenta|A largada está prevista|Distâncias:|Inscrições:|Kit:|Retirada do kit:|Percurso:)/i.test(claim));
   return { supportedClaims, unsupportedClaims, autoPublishEligible: unsupportedClaims.length === 0 && !Object.values(resolvedEvidence).some((resolution) => resolution.criticalConflict) };
 }
 export const researchOutputSchema = z.object({ facts: z.record(z.string(), z.unknown()), sources: z.array(z.object({ url: z.string(), title: z.string(), sourceType: z.string(), trustLevel: z.enum(['A','B','C']), retrievedAt: z.string() })), fieldEvidence: z.record(z.string(), z.array(z.object({ value: z.string(), confidence: z.number().min(0).max(100), source: z.object({ url: z.string(), title: z.string(), sourceType: z.string(), trustLevel: z.enum(['A','B','C']), retrievedAt: z.string() }) }))), conflicts: z.array(z.object({ field: z.string(), values: z.array(z.object({ value: z.string(), source: z.any() })), severity: z.enum(['low','medium','high']) })), missingFields: z.array(z.string()), shortDescription: z.string(), longDescription: z.string(), confidence: z.number().min(0).max(100) }).strict();
@@ -149,12 +163,16 @@ export async function researchAndEnrichCandidate(candidateId: string, input: Res
   const normalizedResult = { ...result, researchConfidence: normalizedResearchConfidence };
   const decision = resolveRaceFieldEvidence(input.event, normalizedResult);
   const merged = decision.resolvedEvent;
-  const editorial = generateResearchEditorial(merged, normalizedResult.facts);
+  const editorial = generateResearchEditorial(merged, normalizedResult.facts, decision.fieldResolutions);
   const enriched = { ...normalizedResult, shortDescription: editorial.shortDescription, longDescription: editorial.longDescription };
   const client = options.client || adminDb();
   const metrics = researchSourceMetrics(normalizedResult);
   const rejectedSources = normalizedResult.rejectedSources ?? [];
-  const payload = { candidate_id: candidateId, base_event: input.event, enriched_event: merged, research_sources: { accepted: result.sources, rejected: rejectedSources }, field_evidence: result.fieldEvidence, conflicts: result.conflicts, missing_fields: result.missingFields, research_confidence: enriched.researchConfidence, content_quality_score: decision.contentQualityScore, short_description: enriched.shortDescription, long_description: enriched.longDescription, model: result.model || null, input_tokens: result.inputTokens ?? null, output_tokens: result.outputTokens ?? null, total_tokens: (result.inputTokens || 0) + (result.outputTokens || 0) || null, field_resolutions: decision.fieldResolutions, replacements: decision.replacements, unresolved_conflicts: decision.unresolvedConflicts, factual_confidence: decision.factualConfidence, auto_publish_eligible: decision.autoPublishEligible, rejection_reasons: decision.rejectionReasons, research_metadata: { ...metrics, webSearches: result.webSearches ?? 0, responseShape: result.responseShape ?? {} } };
+  const scoredSources = matchResearchSources(input, normalizedResult.sources, normalizedResult.facts).map(({ source, score, classification }) => ({ ...source, sourceMatchScore: score, matchClassification: classification, accepted: classification !== 'rejected', rejectionReason: classification === 'rejected' ? 'source_match_below_threshold' : undefined }));
+  const audit = auditGeneratedDescription(enriched.longDescription, merged, decision.fieldResolutions);
+  const rejectionReasons = [...new Set([...decision.rejectionReasons, ...(audit.unsupportedClaims.length ? ['unsupported_editorial_claim'] : [])])];
+  const autoPublishEligible = decision.autoPublishEligible && audit.unsupportedClaims.length === 0;
+  const payload = { candidate_id: candidateId, base_event: input.event, enriched_event: merged, research_sources: { accepted: scoredSources.filter((source) => source.accepted), rejected: [...rejectedSources, ...scoredSources.filter((source) => !source.accepted)] }, field_evidence: result.fieldEvidence, conflicts: result.conflicts, missing_fields: result.missingFields, research_confidence: enriched.researchConfidence, content_quality_score: decision.contentQualityScore, short_description: enriched.shortDescription, long_description: enriched.longDescription, model: result.model || null, input_tokens: result.inputTokens ?? null, output_tokens: result.outputTokens ?? null, total_tokens: (result.inputTokens || 0) + (result.outputTokens || 0) || null, field_resolutions: decision.fieldResolutions, replacements: decision.replacements, unresolved_conflicts: decision.unresolvedConflicts, factual_confidence: decision.factualConfidence, auto_publish_eligible: autoPublishEligible, rejection_reasons: rejectionReasons, description_audit: { supportedClaims: audit.supportedClaims, unsupportedClaims: audit.unsupportedClaims }, research_metadata: { ...metrics, webSearches: result.webSearches ?? 0, responseShape: result.responseShape ?? {}, sourceMatchScores: scoredSources.map(({ url, sourceMatchScore, matchClassification, accepted, rejectionReason, domain, technicalOrigin }) => ({ url, domain, sourceMatchScore, matchClassification, accepted, rejectionReason, technicalOrigin })) } };
   if (result.status === 'completed') {
     await options.onPersistenceStart?.();
     const { error } = await client.from('discovery_candidate_enrichments').upsert(payload, { onConflict: 'candidate_id' });
