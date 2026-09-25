@@ -57,7 +57,7 @@ export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
   private readonly maxSources: number;
   private readonly maxQueries: number;
   constructor(options: OpenAIResearchProviderOptions = {}) {
-    this.client = options.client || new OpenAI({ apiKey: process.env.OPENAI_API_KEY }).responses as unknown as ResearchResponsesClient;
+    this.client = options.client || new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) as unknown as ResearchResponsesClient;
     this.model = options.model || getResearchModelConfiguration();
     this.timeoutMs = options.timeoutMs || 30_000;
     this.maxSources = options.maxSources || 8;
