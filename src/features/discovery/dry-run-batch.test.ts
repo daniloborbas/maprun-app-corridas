@@ -22,4 +22,10 @@ describe('selective dry-run batch orchestration', () => {
     const tooMany = [...ids, 'id-30'];
     expect(() => validateBatchCandidateIds(tooMany, tooMany)).toThrow(/Máximo de 30/);
   });
+  it('accepts the controlled batch sizes used by the admin flow', () => {
+    for (const size of [1, 10, 25, 30]) {
+      const ids = Array.from({ length: size }, (_, i) => `batch-${size}-${i}`);
+      expect(validateBatchCandidateIds(ids, ids).validatedCount).toBe(size);
+    }
+  });
 });

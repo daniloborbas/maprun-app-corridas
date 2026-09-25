@@ -22,7 +22,7 @@ const requestSchema = z.object({
   sourceId: z.string().uuid().optional(),
   limit: z.number().int().min(1).max(10).optional(),
   enableResearch: z.boolean().optional(),
-  researchLimit: z.number().int().min(0).max(10).optional(),
+  researchLimit: z.number().int().min(0).max(30).optional(),
   concurrency: z.number().int().min(1).max(2).optional(),
   allowReprocessExtracted: z.boolean().optional(),
   dryRunExecutionId: z.string().uuid().optional(),
@@ -104,6 +104,9 @@ export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Parâmetros inválidos.' }, { status: 400 });
   const input = parsed.data;
+  if (input.action !== 'dry-run-batch-selected' && input.researchLimit !== undefined && input.researchLimit > 10) {
+    return NextResponse.json({ error: 'research_limit_exceeded_for_action' }, { status: 400 });
+  }
   if ((input.action === 'dry-run' || input.action === 'discover-and-dry-run' || input.action === 'dry-run-batch-selected' || input.action === 'research-diagnostic') && input.enableResearch !== false) {
     try { getResearchModelConfiguration(); } catch (error) { return NextResponse.json({ error: safeError(error) }, { status: 503 }); }
   }
@@ -116,7 +119,7 @@ export async function POST(request: Request) {
       if (error) return NextResponse.json({ error: 'Não foi possível validar candidatos.' }, { status: 500 });
       try {
         const validated = validateBatchCandidateIds(rawCandidateIds, (existing || []).map((row) => String(row.id)));
-        const report = await runSelectiveDryRunBatch({ client, candidateIds: validated.candidateIds, enableResearch: input.enableResearch !== false, researchLimit: input.researchLimit ?? validated.validatedCount, concurrency: 1, allowReprocessExtracted: input.allowReprocessExtracted === true });
+        const report = await runSelectiveDryRunBatch({ client, candidateIds: validated.candidateIds, enableResearch: input.enableResearch !== false, researchLimit: validated.validatedCount, concurrency: 1, allowReprocessExtracted: input.allowReprocessExtracted === true });
         return NextResponse.json({ requestedCount: validated.requestedCount, validatedCount: validated.validatedCount, candidateIds: validated.candidateIds, report });
       } catch (validationError) { return NextResponse.json({ error: safeError(validationError) }, { status: 400 }); }
     }
