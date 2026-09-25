@@ -107,6 +107,7 @@ export function classifyResearchSource(url: string, title = ''): { sourceType: R
 export function sourceMatchScore(input: ResearchInput, source: ResearchSource, facts: Partial<ExtractedRaceEvent> & Record<string, unknown>) {
   if (facts.date && input.event.date && String(facts.date).slice(0, 4) !== input.event.date.slice(0, 4)) return 0;
   let score = 0;
+  if (input.sourceUrl && source.url === input.sourceUrl) score += 35;
   if (facts.name && input.event.name && String(facts.name).toLowerCase().includes(input.event.name.toLowerCase().split(' ')[0])) score += 35;
   if (facts.city && input.event.city && String(facts.city).toLowerCase() === input.event.city.toLowerCase()) score += 25;
   if (facts.state && input.event.state && String(facts.state).toUpperCase() === input.event.state.toUpperCase()) score += 20;

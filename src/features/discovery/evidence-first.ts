@@ -24,6 +24,20 @@ export interface RaceEvidenceDocument {
 export interface DiscoveredEvidenceUrl { url: string; domain: string; title?: string; snippet?: string; discoveryMethod: 'known_url' | 'deterministic_query'; query?: string; }
 export interface RaceSourceDiscoveryProvider { discover(input: ResearchInput & { knownUrls?: string[] }): Promise<DiscoveredEvidenceUrl[]>; }
 export interface RaceEvidenceFetcher { fetch(url: DiscoveredEvidenceUrl): Promise<{ document?: RaceEvidenceDocument; error?: string }>; }
+export function calculateEvidenceResearchConfidence(input: { event: ExtractedRaceEvent; sources: Array<{ sourceType: ResearchSourceType; trustLevel: 'A'|'B'|'C'; sourceMatchScore?: number; editionMatch?: EvidenceEditionMatch }>; missingFields?: string[]; conflicts?: Array<{ field?: string; severity?: string }>; resolverFields?: string[] }): number {
+  const critical = ['name', 'date', 'city', 'state', 'registrationUrl'];
+  const complete = critical.filter((field) => { const value = input.event[field as keyof ExtractedRaceEvent]; return value !== null && value !== undefined && value !== '' && (!Array.isArray(value) || value.length > 0); }).length;
+  const completeness = (complete / critical.length) * 50;
+  const typeRank: Record<string, number> = { official_event: 1, registration_platform: .95, regulation: .95, official_organizer: .9, government: .8, race_calendar: .7, official_social: .65, photo_platform: .4, other: .2 };
+  const trustRank: Record<string, number> = { A: 1, B: .75, C: .5 };
+  const quality = input.sources.length ? input.sources.reduce((sum, source) => sum + (typeRank[source.sourceType] ?? .2) * .4 + (trustRank[source.trustLevel] ?? .5) * .2 + Math.max(0, Math.min(100, source.sourceMatchScore ?? 0)) / 100 * .3 + (source.editionMatch === 'same_edition' ? .1 : source.editionMatch === 'probable_same_edition' ? .08 : 0), 0) / input.sources.length * 25 : 0;
+  const corroboration = Math.min(10, input.sources.length * 5);
+  const requested = input.resolverFields ?? [];
+  const unresolved = new Set(input.missingFields ?? []);
+  const resolver = requested.length ? Math.max(0, 10 - requested.filter((field) => unresolved.has(field)).length * 2.5) : 10;
+  const penalty = (input.conflicts ?? []).reduce((sum, conflict) => sum + (critical.includes(conflict.field || '') && conflict.severity === 'high' ? 30 : conflict.severity === 'high' ? 10 : conflict.severity === 'medium' ? 4 : 1), 0);
+  return Math.max(0, Math.min(100, Math.round(completeness + quality + corroboration + resolver - penalty)));
+}
 export interface EvidenceFirstTelemetry { discoveryUrlsFound: number; evidenceDocsFetched: number; evidenceDocsUsed: number; evidenceCacheHits: number; evidenceCacheMisses: number; deterministicFieldsResolved: number; llmFieldsRequested: string[]; evidenceResolverCalled: boolean; fallbackWebSearchUsed: boolean; fallbackReasons: string[]; evidenceChars: number; evidenceResolverInputTokens: number | null; evidenceResolverOutputTokens: number | null; fallbackInputTokens: number | null; fallbackOutputTokens: number | null; inputTokens: number | null; outputTokens: number | null; totalTokens: number | null; }
 
 const KEYWORDS = /data|hor[aá]rio|largada|local|endere[cç]o|dist[aâ]ncia|inscri[cç][aã]o|valor|regulamento|kit|retirada|categoria|premia[cç][aã]o|organiza[cç][aã]o/i;
@@ -31,11 +45,14 @@ const MAX_DOCS = 3;
 const MAX_DOC_CHARS = 2000;
 const MAX_TOTAL_CHARS = 6000;
 const domainOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; } };
-function classifyEvidenceUrl(url: string, title = ''): { sourceType: ResearchSourceType; trustLevel: 'A' | 'B' | 'C'; domain: string } {
+export function classifyEvidenceUrl(url: string, title = ''): { sourceType: ResearchSourceType; trustLevel: 'A' | 'B' | 'C'; domain: string } {
   const domain = domainOf(url); const text = `${domain} ${url} ${title}`.toLowerCase();
-  if (/regulamento|inscri|ticket|sympla/.test(text)) return { sourceType: 'registration_platform', trustLevel: 'A', domain };
-  if (/\.gov\.br|prefeitura/.test(text)) return { sourceType: 'government', trustLevel: 'B', domain };
-  if (/corrida|calendar|vamucorrer|corrida1/.test(text)) return { sourceType: 'race_calendar', trustLevel: 'C', domain };
+  if (/fotop\.com|fotop\.net/.test(domain)) return { sourceType: 'photo_platform', trustLevel: 'C', domain };
+  if (/regulamento/.test(text)) return { sourceType: 'regulation', trustLevel: 'A', domain };
+  if (/inscri|ticket|sympla|portaldascorridas/.test(text)) return { sourceType: 'registration_platform', trustLevel: 'A', domain };
+  if (/prefeitura|\.gov\.br|federacao|confederacao/.test(text)) return { sourceType: 'government', trustLevel: 'B', domain };
+  if (/instagram|facebook|youtube/.test(domain)) return { sourceType: 'official_social', trustLevel: 'B', domain };
+  if (/corridabrasil|corrida1|vamucorrer|corridanarua/.test(domain)) return { sourceType: 'race_calendar', trustLevel: 'C', domain };
   return { sourceType: 'other', trustLevel: 'C', domain };
 }
 const cleanText = (html: string) => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<nav[\s\S]*?<\/nav>|<footer[\s\S]*?<\/footer>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
@@ -105,7 +122,7 @@ export async function researchCandidateEvidenceFirst(input: ResearchInput, optio
     type CachedEvidence = { url: string; domain: string; title?: string | null; extracted_text: string; fetched_at: string };
     let cached: CachedEvidence | null = null;
     try { const result = await options.client.from('discovery_evidence_cache').select('url,domain,title,extracted_text,fetched_at').eq('normalized_url', url.url).gt('expires_at', new Date().toISOString()).maybeSingle(); cached = result.data as CachedEvidence | null; } catch { /* cache is best effort */ }
-    if (cached?.extracted_text) { cacheHits++; documents.push({ url: cached.url, domain: cached.domain, title: cached.title || undefined, sourceType: 'other', trustLevel: 'C', sourceMatchScore: 40, sourceWeight: 40, editionMatch: 'unknown', text: cached.extracted_text.slice(0, MAX_DOC_CHARS), extractedAt: cached.fetched_at, provenance: { discoveryMethod: url.discoveryMethod, query: url.query } }); continue; }
+    if (cached?.extracted_text) { cacheHits++; documents.push({ url: cached.url, domain: cached.domain, title: cached.title || undefined, sourceType: classifyEvidenceUrl(cached.url, cached.title || undefined).sourceType, trustLevel: classifyEvidenceUrl(cached.url, cached.title || undefined).trustLevel, sourceMatchScore: cached.url === input.sourceUrl ? 100 : 40, sourceWeight: (cached.url === input.sourceUrl ? 100 : 40) * (classifyEvidenceUrl(cached.url, cached.title || undefined).trustLevel === 'A' ? 3 : classifyEvidenceUrl(cached.url, cached.title || undefined).trustLevel === 'B' ? 2 : 1), editionMatch: 'unknown', text: cached.extracted_text.slice(0, MAX_DOC_CHARS), extractedAt: cached.fetched_at, provenance: { discoveryMethod: url.discoveryMethod, query: url.query } }); continue; }
     cacheMisses++; const result = await createSafeEvidenceFetcher(input, source).fetch(url); if (!result.document) continue; fetched++; documents.push(result.document);
     try { await options.client.from('discovery_evidence_cache').upsert({ url: result.document.url, normalized_url: result.document.url, domain: result.document.domain, title: result.document.title || null, extracted_text: result.document.text, expires_at: new Date(Date.now() + 48 * 3600000).toISOString(), status: 'ok', metadata: { sourceType: result.document.sourceType } }, { onConflict: 'normalized_url' }); } catch { /* cache is best effort */ }
   }
@@ -122,7 +139,7 @@ export async function researchCandidateEvidenceFirst(input: ResearchInput, optio
   const identityInsufficient = !input.event.name || !input.event.date || !input.event.city || !input.event.state;
   const needsFallback = identityInsufficient || criticalRequested.length > 0 || (selected.length === 0);
   let fallback: RaceResearchResult | null = null; if (needsFallback && options.fallback) fallback = await options.fallback.research({ queries: buildDeterministicResearchQueries(input), known: input, maxSources: 5 });
-  const result = fallback || { sources: selected.map((doc) => ({ url: doc.url, title: doc.title || doc.domain, sourceType: doc.sourceType, trustLevel: doc.trustLevel, retrievedAt: doc.extractedAt, domain: doc.domain, sourceWeight: doc.sourceWeight, sourceMatchScore: doc.sourceMatchScore, editionMatch: doc.editionMatch })), facts, fieldEvidence: {}, conflicts: [], missingFields: requested, researchConfidence: selected.length ? 50 : 0, durationMs: Date.now() - started, status: selected.length ? 'completed' : 'no_sources', shortDescription: '', longDescription: '', rawSourcesCount: selected.length, webSearches: 0 };
+  const result = fallback || { sources: selected.map((doc) => ({ url: doc.url, title: doc.title || doc.domain, sourceType: doc.sourceType, trustLevel: doc.trustLevel, retrievedAt: doc.extractedAt, domain: doc.domain, sourceWeight: doc.sourceWeight, sourceMatchScore: doc.sourceMatchScore, editionMatch: doc.editionMatch })), facts, fieldEvidence: {}, conflicts: [], missingFields: requested, researchConfidence: calculateEvidenceResearchConfidence({ event: input.event, sources: selected, missingFields: requested, resolverFields: requested, conflicts: [] }), durationMs: Date.now() - started, status: selected.length ? 'completed' : 'no_sources', shortDescription: '', longDescription: '', rawSourcesCount: selected.length, webSearches: 0 };
   const fallbackReasons = [...(identityInsufficient ? ['identity_insufficient'] : []), ...criticalRequested.map((field) => `critical_${field}_unresolved_or_conflicted`), ...(!selected.length ? ['evidence_insufficient'] : [])];
   return { ...result, evidenceTelemetry: { discoveryUrlsFound: found.length, evidenceDocsFetched: fetched, evidenceDocsUsed: selected.length, evidenceCacheHits: cacheHits, evidenceCacheMisses: cacheMisses, evidenceChars: context.length, deterministicFieldsResolved: deterministic.length, llmFieldsRequested: requested, evidenceResolverCalled: Boolean(options.resolve && selected.length), fallbackWebSearchUsed: Boolean(fallback), fallbackReasons, evidenceResolverInputTokens: resolverInputTokens, evidenceResolverOutputTokens: resolverOutputTokens, fallbackInputTokens: fallback?.inputTokens ?? null, fallbackOutputTokens: fallback?.outputTokens ?? null, inputTokens: resolverInputTokens === null && fallback?.inputTokens == null ? null : (resolverInputTokens ?? 0) + (fallback?.inputTokens ?? 0), outputTokens: resolverOutputTokens === null && fallback?.outputTokens == null ? null : (resolverOutputTokens === null && fallback?.outputTokens == null ? null : (resolverOutputTokens ?? 0) + (fallback?.outputTokens ?? 0)), totalTokens: resolverInputTokens === null && resolverOutputTokens === null && fallback?.inputTokens == null && fallback?.outputTokens == null ? null : (resolverInputTokens ?? 0) + (resolverOutputTokens ?? 0) + (fallback?.inputTokens ?? 0) + (fallback?.outputTokens ?? 0) } };
 }
