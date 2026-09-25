@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { buildResearchQueries, classifyResearchSource, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, normalizeConfidenceScore, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, auditGeneratedDescription, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
+import { buildResearchQueries, classifyResearchSource, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, normalizeConfidenceScore, normalizeBrazilianState, normalizeCity, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, auditGeneratedDescription, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 
 const event: ExtractedRaceEvent = { name: 'Corrida Teste', date: '2026-10-10', startTime: null, city: 'Itajubá', state: 'MG', venue: null, address: null, distances: [], price: null, organizerName: null, registrationUrl: null, coverImageUrl: null };
@@ -41,6 +41,21 @@ describe('discovery research', () => {
     const audited = auditGeneratedDescription('A prova acontece em Itajubá / MG. Uma informação inventada.', event, {});
     expect(audited.unsupportedClaims).toContain('Uma informação inventada');
     expect(audited.autoPublishEligible).toBe(false);
+  });
+  it('ignores URLs while auditing claims and returns referencedUrls', () => {
+    const audited = auditGeneratedDescription('Inscrições: https://www.sympla.com.br/evento/corrida-x/123', event, {});
+    expect(audited.unsupportedClaims).toEqual([]);
+    expect(audited.referencedUrls).toEqual(['https://www.sympla.com.br/evento/corrida-x/123']);
+  });
+  it('normalizes equivalent states and cities', () => {
+    expect(normalizeBrazilianState('São Paulo')).toBe('SP');
+    expect(normalizeBrazilianState('SP')).toBe('SP');
+    expect(normalizeCity('São José dos Campos')).toBe(normalizeCity('SAO JOSE DOS CAMPOS'));
+  });
+  it('formats civil dates instead of exposing ISO timestamps', () => {
+    const editorial = generateResearchEditorial({ ...event, date: '2026-09-26T10:00:00.000Z' });
+    expect(editorial.shortDescription).toContain('26/09/2026');
+    expect(editorial.shortDescription).not.toContain('T10:00:00');
   });
   it('does not count repeated URLs from one domain as independent evidence', () => {
     const repeated = { ...source, url: 'https://example.test/another' };
