@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { buildResearchQueries, type RaceResearchProvider, type RaceResearchResult, type ResearchInput, type ResearchSource, type ResearchSourceType } from './research';
 
 export type ResearchProviderErrorCode = 'missing_api_key'|'timeout'|'rate_limit'|'authentication'|'invalid_response'|'web_search_error'|'provider_error';
-export class ResearchProviderError extends Error { constructor(public readonly code: ResearchProviderErrorCode, message: string) { super(message); } }
+export type ResearchErrorPhase = 'configuration'|'request_build'|'responses_api'|'web_search'|'structured_output'|'citation_parsing'|'source_validation'|'persistence';
+export class ResearchProviderError extends Error { constructor(public readonly code: ResearchProviderErrorCode, message: string, public readonly details: { status?: number; providerType?: string; param?: string; phase?: ResearchErrorPhase } = {}) { super(message); } }
 export interface ResearchResponsesClient { responses: { create: (input: Record<string, unknown>, options?: { signal?: AbortSignal }) => Promise<unknown> } }
 export interface OpenAIResearchProviderOptions { client?: ResearchResponsesClient; model?: string; timeoutMs?: number; maxSources?: number; maxQueries?: number; }
 
@@ -85,9 +86,12 @@ export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
       if (error instanceof ResearchProviderError) throw error;
       if (controller.signal.aborted) throw new ResearchProviderError('timeout', 'Tempo limite da pesquisa excedido.');
       const status = (error as { status?: number })?.status;
-      if (status === 401 || status === 403) throw new ResearchProviderError('authentication', 'Falha de autenticação ou permissão da OpenAI.');
-      if (status === 429) throw new ResearchProviderError('rate_limit', 'Limite de requisições da OpenAI atingido.');
-      throw new ResearchProviderError('web_search_error', 'Falha controlada na pesquisa web.');
+      const details = error as { code?: unknown; type?: unknown; param?: unknown; message?: unknown; status?: number };
+      const message = typeof details.message === 'string' ? details.message.replace(/sk-[A-Za-z0-9_-]+/g, '[redacted]').slice(0, 240) : 'Falha controlada na pesquisa web.';
+      const extra = { status, providerType: typeof details.type === 'string' ? details.type : undefined, param: typeof details.param === 'string' ? details.param : undefined, phase: 'responses_api' as const };
+      if (status === 401 || status === 403) throw new ResearchProviderError('authentication', message, extra);
+      if (status === 429) throw new ResearchProviderError('rate_limit', message, extra);
+      throw new ResearchProviderError('web_search_error', message, extra);
     } finally { clearTimeout(timer); }
   }
 }

@@ -6,10 +6,14 @@ import { discoverAndPersistFromSource } from '@/features/discovery/candidate-rep
 import { runDiscoveryDryRun } from '@/features/discovery/dry-run';
 import { listSourcesReadyForCrawl, recordDiscoverySourceFailure, recordDiscoverySourceSuccess } from '@/features/discovery/source-repository';
 import { getResearchModelConfiguration } from '@/features/discovery/openai-research-provider';
+import { createRaceResearchProvider, ResearchProviderError } from '@/features/discovery/openai-research-provider';
+import { buildResearchQueries, type ResearchInput } from '@/features/discovery/research';
+import { markCandidateProcessing } from '@/features/discovery/candidate-repository';
+import { processDiscoveryCandidate } from '@/features/discovery/candidate-processor';
 import type { DiscoverySource } from '@/features/discovery/types';
 
 const requestSchema = z.object({
-  action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run', 'dry-run-selected']),
+  action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run', 'dry-run-selected', 'research-diagnostic']),
   sourceIds: z.array(z.string().uuid()).max(50).optional(),
   candidateIds: z.array(z.string().uuid()).max(10).optional(),
   sourceLimit: z.number().int().min(1).max(50).optional(),
@@ -96,12 +100,31 @@ export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Parâmetros inválidos.' }, { status: 400 });
   const input = parsed.data;
-  if ((input.action === 'dry-run' || input.action === 'discover-and-dry-run') && input.enableResearch !== false) {
+  if ((input.action === 'dry-run' || input.action === 'discover-and-dry-run' || input.action === 'research-diagnostic') && input.enableResearch !== false) {
     try { getResearchModelConfiguration(); } catch (error) { return NextResponse.json({ error: safeError(error) }, { status: 503 }); }
   }
   let client;
   try { client = adminDb(); } catch { return NextResponse.json({ error: 'Banco indisponível.' }, { status: 503 }); }
   try {
+    if (input.action === 'research-diagnostic') {
+      if (!input.candidateIds || input.candidateIds.length !== 1) return NextResponse.json({ error: 'research-diagnostic exige exatamente um candidateId.' }, { status: 400 });
+      const { data: candidate, error } = await client.from('discovery_candidates').select('*').eq('id', input.candidateIds[0]).maybeSingle();
+      if (error || !candidate) return NextResponse.json({ error: 'Candidato inexistente.' }, { status: 404 });
+      const claimed = await markCandidateProcessing(candidate.id, client);
+      if (!claimed) return NextResponse.json({ error: 'Candidato não pôde ser reservado para diagnóstico.' }, { status: 409 });
+      const extraction = await processDiscoveryCandidate(claimed, { client });
+      if (!extraction.success || !extraction.extractedEvent) return NextResponse.json({ candidateId: candidate.id, extractionStatus: extraction.errorCode || 'failed', error: extraction.errorMessage || 'Extração determinística falhou.' }, { status: 200 });
+      const known: ResearchInput = { event: extraction.extractedEvent, sourceUrl: candidate.url };
+      const started = Date.now();
+      try {
+        const provider = createRaceResearchProvider();
+        const result = await provider.research({ queries: buildResearchQueries(known, 4), known, maxSources: 8 });
+        return NextResponse.json({ candidateId: candidate.id, url: candidate.url, model: result.model || process.env.OPENAI_RESEARCH_MODEL, extractionStatus: extraction.extractionStatus, researchAttempted: true, researchSucceeded: result.status === 'completed', durationMs: Date.now() - started, result: { status: result.status, sources: result.sources.map((source) => ({ title: source.title, url: source.url, sourceType: source.sourceType })), facts: result.facts, researchConfidence: result.researchConfidence, inputTokens: result.inputTokens, outputTokens: result.outputTokens } });
+      } catch (error) {
+        if (error instanceof ResearchProviderError) return NextResponse.json({ candidateId: candidate.id, url: candidate.url, researchAttempted: true, researchSucceeded: false, error: { type: error.code, status: error.details.status || null, code: error.code, param: error.details.param || null, providerType: error.details.providerType || null, message: error.message.slice(0, 240), phase: error.details.phase || 'responses_api' } }, { status: 200 });
+        return NextResponse.json({ candidateId: candidate.id, url: candidate.url, researchAttempted: true, researchSucceeded: false, error: { type: 'provider_error', status: null, code: 'provider_error', param: null, providerType: null, message: 'Falha controlada na pesquisa web.', phase: 'responses_api' } }, { status: 200 });
+      }
+    }
     if (input.action === 'dry-run-selected') {
       const candidateIds = [...new Set(input.candidateIds || [])];
       if (!candidateIds.length) return NextResponse.json({ error: 'candidateIds é obrigatório.' }, { status: 400 });
