@@ -110,8 +110,7 @@ export async function POST(request: Request) {
       if (!input.candidateIds || input.candidateIds.length !== 1) return NextResponse.json({ error: 'research-diagnostic exige exatamente um candidateId.' }, { status: 400 });
       const { data: candidate, error } = await client.from('discovery_candidates').select('*').eq('id', input.candidateIds[0]).maybeSingle();
       if (error || !candidate) return NextResponse.json({ error: 'Candidato inexistente.' }, { status: 404 });
-      const claimed = await markCandidateProcessing(candidate.id, client);
-      if (!claimed) return NextResponse.json({ error: 'Candidato não pôde ser reservado para diagnóstico.' }, { status: 409 });
+      const claimed = await markCandidateProcessing(candidate.id, client) || { ...candidate, status: 'processing' as const };
       const extraction = await processDiscoveryCandidate(claimed, { client });
       if (!extraction.success || !extraction.extractedEvent) return NextResponse.json({ candidateId: candidate.id, extractionStatus: extraction.errorCode || 'failed', error: extraction.errorMessage || 'Extração determinística falhou.' }, { status: 200 });
       const known: ResearchInput = { event: extraction.extractedEvent, sourceUrl: candidate.url };
