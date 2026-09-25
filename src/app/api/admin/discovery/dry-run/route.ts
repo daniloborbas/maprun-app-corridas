@@ -9,7 +9,7 @@ import { getResearchModelConfiguration } from '@/features/discovery/openai-resea
 import type { DiscoverySource } from '@/features/discovery/types';
 
 const requestSchema = z.object({
-  action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run']),
+  action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run', 'dry-run-selected']),
   sourceIds: z.array(z.string().uuid()).max(50).optional(),
   candidateIds: z.array(z.string().uuid()).max(10).optional(),
   sourceLimit: z.number().int().min(1).max(50).optional(),
@@ -102,6 +102,18 @@ export async function POST(request: Request) {
   let client;
   try { client = adminDb(); } catch { return NextResponse.json({ error: 'Banco indisponível.' }, { status: 503 }); }
   try {
+    if (input.action === 'dry-run-selected') {
+      const candidateIds = [...new Set(input.candidateIds || [])];
+      if (!candidateIds.length) return NextResponse.json({ error: 'candidateIds é obrigatório.' }, { status: 400 });
+      if (candidateIds.length > 10) return NextResponse.json({ error: 'Máximo de 10 candidatos.' }, { status: 400 });
+      const { data: existing, error } = await client.from('discovery_candidates').select('id').in('id', candidateIds);
+      if (error) return NextResponse.json({ error: 'Não foi possível validar candidatos.' }, { status: 500 });
+      const found = new Set((existing || []).map((row) => String(row.id)));
+      const missing = candidateIds.filter((id) => !found.has(id));
+      if (missing.length) return NextResponse.json({ error: `Candidatos inexistentes: ${missing.join(', ')}` }, { status: 400 });
+      const report = await runDiscoveryDryRun({ client, candidateIds, limit: candidateIds.length, enableResearch: input.enableResearch !== false, researchLimit: input.researchLimit ?? 10, concurrency: input.concurrency ?? 2 });
+      return NextResponse.json({ report });
+    }
     if (input.action === 'list-sources') {
       const sources = await listSourcesReadyForCrawl(new Date(), client);
       return NextResponse.json({ sources: sources.slice(0, input.sourceLimit ?? 3).map((source) => ({ id: source.id, name: source.name })) });
