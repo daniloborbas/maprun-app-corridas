@@ -11,11 +11,18 @@ describe('OpenAI web research provider', () => {
   it('requires web_search and captures only returned citations', async () => {
     const { client, create } = fakeClient(output);
     const result = await new OpenAIWebRaceResearchProvider({ client, model: 'research-test' }).research({ queries: ['race'], known, maxSources: 8 });
-    expect(create.mock.calls[0][0].tools).toEqual([{ type: 'web_search' }]);
+    expect(create.mock.calls[0][0].tools).toEqual([{ type: 'web_search', search_context_size: 'low' }]);
+    expect(create.mock.calls[0][0].reasoning).toEqual({ effort: 'low' });
     expect(create.mock.calls[0][0].tool_choice).toBe('required');
     expect(result.sources.map((source) => source.url)).toEqual(['https://official.example/race']);
     expect(result.inputTokens).toBe(10);
     expect(result.outputTokens).toBe(20);
+  });
+  it('uses the 45 second default timeout and supports the diagnostic two-query budget', async () => {
+    const { client, create } = fakeClient(output);
+    const provider = new OpenAIWebRaceResearchProvider({ client, model: 'research-test', maxQueries: 2 });
+    await provider.research({ queries: ['ignored'], known, maxSources: 8 });
+    expect(create.mock.calls[0][0].input.split('\n')).toHaveLength(2);
   });
   it('does not trust a URL present only in model JSON', async () => {
     const { client } = fakeClient({ ...output, output: [], output_text: JSON.stringify({ ...JSON.parse(output.output_text), evidence: { startTime: [{ value: '07:00', sourceUrl: 'https://invented.example', confidence: 99 }] } }) });
