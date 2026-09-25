@@ -2,7 +2,7 @@ import 'server-only';
 import OpenAI from 'openai';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { buildResearchQueries, type RaceResearchProvider, type RaceResearchResult, type ResearchInput, type ResearchSource, type ResearchSourceType } from './research';
+import { buildResearchQueries, normalizeConfidenceScore, type RaceResearchProvider, type RaceResearchResult, type ResearchInput, type ResearchSource, type ResearchSourceType } from './research';
 
 export type ResearchProviderErrorCode = 'missing_api_key'|'timeout'|'rate_limit'|'authentication'|'invalid_response'|'web_search_error'|'provider_error'|'openai_api_error'|'network_error'|'abort_error'|'invalid_request';
 export type ResearchErrorPhase = 'configuration'|'request_build'|'responses_api'|'web_search'|'structured_output'|'citation_parsing'|'source_validation'|'persistence';
@@ -60,7 +60,7 @@ export function normalizeResearchPayload(value: unknown) {
     evidence: Object.fromEntries(researchFields.map((field) => [field, Array.isArray(rawEvidence[field]) ? rawEvidence[field] : []])),
     conflicts: Array.isArray(raw.conflicts) ? raw.conflicts : [],
     missingFields: Array.isArray(raw.missingFields) ? raw.missingFields : [],
-    confidence: typeof raw.confidence === 'number' ? raw.confidence : 0,
+    confidence: normalizeConfidenceScore(raw.confidence),
   };
 }
 const sourceType = (url: string): ResearchSourceType => /regulamento/i.test(url) ? 'regulation' : /inscri|ticket|sympla/i.test(url) ? 'registration_platform' : 'other';

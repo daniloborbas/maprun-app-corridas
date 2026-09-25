@@ -16,6 +16,13 @@ export interface SourceMatch { source: ResearchSource; score: number; classifica
 export interface FieldResolution { status: FieldResolutionStatus; chosenValue: unknown; confidence: number; supportingSources: ResearchSource[]; conflictingSources: ResearchSource[]; criticalConflict: boolean; }
 export interface ResearchDecision { resolvedEvent: ExtractedRaceEvent; fieldResolutions: Record<string, FieldResolution>; replacements: { field: string; oldValue: unknown; newValue: unknown; resolutionReason: string; supportingSources: ResearchSource[] }[]; unresolvedConflicts: ResearchConflict[]; factualConfidence: number; contentQualityScore: number; autoPublishEligible: boolean; rejectionReasons: string[]; }
 
+/** Normalizes provider confidence to the canonical internal 0–100 scale. */
+export function normalizeConfidenceScore(value: unknown): number | null {
+  if (value === null || value === undefined || typeof value !== 'number' || !Number.isFinite(value)) return null;
+  if (value < 0 || value > 100) return null;
+  return value <= 1 ? value * 100 : value;
+}
+
 export type PersistenceErrorDetails = { code?: string; message: string; details?: string; hint?: string; status?: number; constraint?: string; column?: string; table?: string };
 export class ResearchPersistenceError extends Error {
   constructor(message: string, public readonly details: PersistenceErrorDetails) {
@@ -138,13 +145,15 @@ export async function researchAndEnrichCandidate(candidateId: string, input: Res
   if (!shouldResearchEvent(input.event)) return { status: 'skipped' as const, reason: 'research_not_needed', durationMs: Date.now() - started };
   const activeProvider = provider || (await import('./openai-research-provider')).createRaceResearchProvider({ maxQueries: options.maxQueries, maxSources: options.maxSources });
   const result = await activeProvider.research({ queries: buildResearchQueries(input, options.maxQueries ?? 4), known: input, maxSources: options.maxSources ?? 8 });
-  const decision = resolveRaceFieldEvidence(input.event, result);
+  const normalizedResearchConfidence = normalizeConfidenceScore(result.researchConfidence) ?? researchConfidence(result);
+  const normalizedResult = { ...result, researchConfidence: normalizedResearchConfidence };
+  const decision = resolveRaceFieldEvidence(input.event, normalizedResult);
   const merged = decision.resolvedEvent;
-  const editorial = generateResearchEditorial(merged, result.facts);
-  const enriched = { ...result, researchConfidence: result.researchConfidence || researchConfidence(result), shortDescription: editorial.shortDescription, longDescription: editorial.longDescription };
+  const editorial = generateResearchEditorial(merged, normalizedResult.facts);
+  const enriched = { ...normalizedResult, shortDescription: editorial.shortDescription, longDescription: editorial.longDescription };
   const client = options.client || adminDb();
-  const metrics = researchSourceMetrics(result);
-  const rejectedSources = result.rejectedSources ?? [];
+  const metrics = researchSourceMetrics(normalizedResult);
+  const rejectedSources = normalizedResult.rejectedSources ?? [];
   const payload = { candidate_id: candidateId, base_event: input.event, enriched_event: merged, research_sources: { accepted: result.sources, rejected: rejectedSources }, field_evidence: result.fieldEvidence, conflicts: result.conflicts, missing_fields: result.missingFields, research_confidence: enriched.researchConfidence, content_quality_score: decision.contentQualityScore, short_description: enriched.shortDescription, long_description: enriched.longDescription, model: result.model || null, input_tokens: result.inputTokens ?? null, output_tokens: result.outputTokens ?? null, total_tokens: (result.inputTokens || 0) + (result.outputTokens || 0) || null, field_resolutions: decision.fieldResolutions, replacements: decision.replacements, unresolved_conflicts: decision.unresolvedConflicts, factual_confidence: decision.factualConfidence, auto_publish_eligible: decision.autoPublishEligible, rejection_reasons: decision.rejectionReasons, research_metadata: { ...metrics, webSearches: result.webSearches ?? 0, responseShape: result.responseShape ?? {} } };
   if (result.status === 'completed') {
     await options.onPersistenceStart?.();

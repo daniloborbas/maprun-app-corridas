@@ -15,5 +15,9 @@ describe('dry run eligibility', () => {
     const result = evaluateAutoPublishEligibility(event, { researchRequired: true, researchConfidence: 50, contentQualityScore: 80, conflicts: [{ severity: 'high' }] });
     expect(result.rejectionReasons).toEqual(expect.arrayContaining(['low_research_confidence', 'critical_conflict']));
   });
+  it('evaluates normalized model confidence as a percentage', () => {
+    expect(evaluateAutoPublishEligibility({ ...event, distances: ['5 km'] }, { researchRequired: true, researchConfidence: 78, contentQualityScore: 80 }).rejectionReasons).toContain('low_research_confidence');
+    expect(evaluateAutoPublishEligibility({ ...event, distances: ['5 km'] }, { researchRequired: true, researchConfidence: 82, contentQualityScore: 80 }).rejectionReasons).not.toContain('low_research_confidence');
+  });
   it('rejects low content quality', () => expect(evaluateAutoPublishEligibility(event, { contentQualityScore: 69 }).rejectionReasons).toContain('low_content_quality'));
 });

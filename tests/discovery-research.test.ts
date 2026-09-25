@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { buildResearchQueries, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
+import { buildResearchQueries, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, normalizeConfidenceScore, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 
 const event: ExtractedRaceEvent = { name: 'Corrida Teste', date: '2026-10-10', startTime: null, city: 'Itajubá', state: 'MG', venue: null, address: null, distances: [], price: null, organizerName: null, registrationUrl: null, coverImageUrl: null };
@@ -64,11 +64,17 @@ describe('discovery research', () => {
     const provider = { research: vi.fn().mockResolvedValue({ ...result, researchConfidence: 0.78 }) };
     await researchAndEnrichCandidate('00000000-0000-0000-0000-000000000001', input, provider, { client });
     const payload = upsert.mock.calls[0][0];
-    expect(payload.research_confidence).toBe(0.78);
-    expect(payload.factual_confidence).toBe(1);
+    expect(payload.research_confidence).toBe(78);
+    expect(payload.factual_confidence).toBe(78);
     expect(payload.content_quality_score).toBe(58);
     expect(typeof payload.research_confidence).toBe('number');
     expect(typeof payload.factual_confidence).toBe('number');
     expect(typeof payload.content_quality_score).toBe('number');
+  });
+  it.each([[0, 0], [0.78, 78], [0.82, 82], [1, 100], [78, 78], [82.5, 82.5], [100, 100]])('normalizes confidence %s to %s on the canonical 0-100 scale', (input, expected) => {
+    expect(normalizeConfidenceScore(input)).toBe(expected);
+  });
+  it.each([-0.01, 100.01, Number.NaN, Number.POSITIVE_INFINITY])('rejects invalid confidence %s', (input) => {
+    expect(normalizeConfidenceScore(input)).toBeNull();
   });
 });
