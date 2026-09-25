@@ -24,6 +24,7 @@ const requestSchema = z.object({
   researchLimit: z.number().int().min(0).max(10).optional(),
   concurrency: z.number().int().min(1).max(2).optional(),
   allowReprocessExtracted: z.boolean().optional(),
+  dryRunExecutionId: z.string().uuid().optional(),
 });
 
 export const runtime = 'nodejs';
@@ -155,7 +156,7 @@ export async function POST(request: Request) {
       const missing = candidateIds.filter((id) => !found.has(id));
       if (missing.length) return NextResponse.json({ error: `Candidatos inexistentes: ${missing.join(', ')}` }, { status: 400 });
       await recoverExpiredProcessingCandidatesByIds(candidateIds, client);
-      const report = await runDiscoveryDryRun({ client, candidateIds, limit: candidateIds.length, enableResearch: input.enableResearch !== false, researchLimit: input.researchLimit ?? 10, concurrency: input.concurrency ?? 2, allowReprocessExtracted: input.allowReprocessExtracted === true });
+      const report = await runDiscoveryDryRun({ client, candidateIds, limit: candidateIds.length, enableResearch: input.enableResearch !== false, researchLimit: input.researchLimit ?? 10, concurrency: input.concurrency ?? 2, allowReprocessExtracted: input.allowReprocessExtracted === true, dryRunExecutionId: input.dryRunExecutionId });
       return NextResponse.json({ report });
     }
     if (input.action === 'list-sources') {
