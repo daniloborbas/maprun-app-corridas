@@ -75,6 +75,23 @@ export async function processDiscoveryCandidate(candidate: DiscoveryCandidate, d
   }
 }
 
+/** Deterministic extraction for diagnostics; deliberately does not mutate candidate state. */
+export async function extractDiscoveryCandidate(candidate: DiscoveryCandidate, deps: CandidateProcessorDependencies = {}): Promise<CandidateProcessingResult> {
+  const started = Date.now();
+  const base = { candidateId: candidate.id, sourceId: candidate.source_id, url: candidate.url };
+  try {
+    const html = await fetchCandidateHtml(candidate.url, deps);
+    const extraction = (deps.extractor || extractEventExtraction)(html, candidate.url);
+    const parsed = extractedEventSchema.safeParse(extraction.event);
+    if (!parsed.success) return { ...base, success: false, extractionMethod: 'deterministic', errorCode: 'schema_invalid', errorMessage: 'Resultado determinístico fora do contrato.', durationMs: Date.now() - started };
+    if (!isRaceLike(extraction)) return { ...base, success: false, extractionMethod: 'deterministic', extractionStatus: 'insufficient', errorCode: 'not_a_race', errorMessage: 'Página não representa uma corrida processável.', durationMs: Date.now() - started };
+    return { ...base, success: true, extractionMethod: 'deterministic', extractedEvent: parsed.data, extractionStatus: extraction.extractionQuality.status, durationMs: Date.now() - started };
+  } catch (error) {
+    const failure = error instanceof CandidateProcessingFailure ? error : new CandidateProcessingFailure('unknown', 'Falha inesperada no processamento.', true);
+    return { ...base, success: false, extractionMethod: null, errorCode: failure.code, errorMessage: failure.message, durationMs: Date.now() - started };
+  }
+}
+
 export interface CandidateBatchOptions extends CandidateProcessorDependencies { limit?: number; concurrency?: number; recoverExpired?: boolean; }
 export async function processDiscoveryCandidateBatch(options: CandidateBatchOptions = {}) {
   const started = Date.now();

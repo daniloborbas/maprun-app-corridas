@@ -113,6 +113,38 @@ export class OpenAIWebRaceResearchProvider implements RaceResearchProvider {
     this.maxSources = options.maxSources || 8;
     this.maxQueries = options.maxQueries || 4;
   }
+  async diagnostic(known: ResearchInput) {
+    const started = Date.now();
+    const queries = buildResearchQueries(known, this.maxQueries);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await this.client.responses.create({ model: this.model, reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'low' }], tool_choice: 'required', include: ['web_search_call.action.sources'], instructions: researchInstructions(known, queries), input: queries.join('\n'), text: { format: { type: 'json_schema', name: 'maprun_race_research', strict: true, schema: raceResearchOutputSchema } } }, { signal: controller.signal });
+      const rawText = (response as { output_text?: unknown }).output_text;
+      if (typeof rawText !== 'string' || !rawText.trim()) throw new ResearchProviderError('invalid_response', 'A pesquisa não retornou JSON estruturado.', { phase: 'structured_output' });
+      let parsed: unknown;
+      try { parsed = JSON.parse(rawText); } catch { throw new ResearchProviderError('invalid_response', 'A pesquisa retornou JSON inválido.', { phase: 'structured_output' }); }
+      const normalized = normalizeResearchPayload(parsed);
+      const validated = raceResearchResponseSchema.safeParse(normalized);
+      if (!validated.success) throw new ResearchProviderError('invalid_response', 'A pesquisa retornou dados fora do schema.', { phase: 'structured_output' });
+      const extracted = extractWebSearchSources(response);
+      const sources = extracted.sources;
+      const sourceUrls = new Set(sources.map((source) => source.url));
+      const evidenceWithRealSource: Record<string, unknown[]> = {};
+      const evidenceWithoutRealSource: Record<string, unknown[]> = {};
+      for (const [field, evidence] of Object.entries(validated.data.evidence)) {
+        evidenceWithRealSource[field] = evidence.filter((item) => sourceUrls.has(item.sourceUrl));
+        evidenceWithoutRealSource[field] = evidence.filter((item) => !sourceUrls.has(item.sourceUrl));
+      }
+      const identity = sources.map((source) => ({ ...source, identitySignals: { name: Boolean(known.event.name && source.title.toLowerCase().includes(known.event.name.toLowerCase())), city: Boolean(known.event.city && source.url.toLowerCase().includes(known.event.city.toLowerCase().replace(/\\s+/g, '-'))), year: source.url.includes(known.event.date?.slice(0, 4) || '2026') } }));
+      return { responseId: (response as { id?: string }).id || null, responseStatus: (response as { status?: string }).status || null, durationMs: Date.now() - started, model: this.model, queries, promptCharacterCount: researchInstructions(known, queries).length, outputItemTypes: extracted.responseShape.outputItemTypes, webSearchCalls: extracted.webSearches, rawSourcesCount: extracted.rawSourcesCount, uniqueSourcesCount: sources.length, sources: identity, parsed: validated.data, evidenceWithRealSource, evidenceWithoutRealSource, inputTokens: (response as { usage?: { input_tokens?: number } }).usage?.input_tokens ?? null, outputTokens: (response as { usage?: { output_tokens?: number } }).usage?.output_tokens ?? null, totalTokens: ((response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage?.input_tokens || 0) + ((response as { usage?: { output_tokens?: number } }).usage?.output_tokens || 0) || null };
+    } catch (error) {
+      if (error instanceof ResearchProviderError) throw error;
+      if (controller.signal.aborted) throw new ResearchProviderError('timeout', 'Tempo limite da pesquisa excedido.', { phase: 'responses_api' });
+      const details = sanitizeOpenAIError(error, 'web_search_error');
+      throw new ResearchProviderError(details.code, details.message, { status: details.status, providerType: details.type, param: details.param, phase: 'responses_api', requestId: details.requestId, constructorName: details.constructorName, errorName: details.name, cause: details.cause });
+    } finally { clearTimeout(timer); }
+  }
   async research({ known }: { queries: string[]; known: ResearchInput; maxSources: number }): Promise<RaceResearchResult> {
     const started = Date.now();
     const queries = buildResearchQueries(known, this.maxQueries);
@@ -146,3 +178,4 @@ export function createRaceResearchProvider(options: OpenAIResearchProviderOption
   if (!options.client && !process.env.OPENAI_API_KEY) throw new ResearchProviderError('missing_api_key', 'OPENAI_API_KEY não configurada.');
   return new OpenAIWebRaceResearchProvider(options);
 }
+
