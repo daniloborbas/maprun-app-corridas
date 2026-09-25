@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
-import { buildResearchQueries, researchSearchTelemetry, classifyResearchSource, classifyEditionMatch, sourceEvidenceWeight, contentQualityScore, generateResearchEditorial, mergeRaceEvidence, normalizeConfidenceScore, normalizeBrazilianState, normalizeCity, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, auditGeneratedDescription, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
+import { buildResearchQueries, researchSearchTelemetry, classifyResearchSource, classifyEditionMatch, sourceEvidenceWeight, contentQualityScore, generateResearchEditorial, formatCivilEventDate, mergeRaceEvidence, normalizeConfidenceScore, normalizeBrazilianState, normalizeCity, researchConfidence, researchSourceMetrics, shouldResearchEvent, sourceMatchScore, resolveRaceFieldEvidence, matchResearchSources, researchAndEnrichCandidate, ResearchPersistenceError, sanitizePersistenceError, auditGeneratedDescription, type RaceResearchResult, type ResearchInput, type ResearchSource } from '@/features/discovery/research';
 import { selectResearchSources } from '@/features/discovery/openai-research-provider';
 import type { ExtractedRaceEvent } from '@/features/importer/url-import';
 
@@ -10,6 +10,12 @@ const input: ResearchInput = { event, sourceUrl: 'https://example.com/race' };
 const result: RaceResearchResult = { sources: [source], facts: { startTime: '07:00', city: 'Itajubá' }, fieldEvidence: { startTime: [{ value: '07:00', source, confidence: 95 }] }, conflicts: [], missingFields: [], researchConfidence: 0, durationMs: 10, status: 'completed', shortDescription: '', longDescription: '' };
 
 describe('discovery research', () => {
+  it('preserves civil dates while converting zoned datetimes once', () => {
+    expect(formatCivilEventDate('2026-10-18')).toBe('18/10/2026');
+    expect(formatCivilEventDate('2026-10-18T10:00:00Z')).toBe('18/10/2026');
+    expect(formatCivilEventDate('2026-10-18T02:00:00Z')).toBe('17/10/2026');
+    expect(generateResearchEditorial({ ...event, date: '2026-10-18' }, {}, {}).shortDescription).toContain('18/10/2026');
+  });
   it('requests research only when relevant data is missing', () => {
     expect(shouldResearchEvent(event)).toBe(true);
     expect(shouldResearchEvent({ ...event, startTime: '07:00', venue: 'Centro', address: 'Rua A', distances: ['5 km'], price: '20', registrationUrl: 'https://example.com/i', organizerName: 'Org' }, { kit: 'Camiseta', packetPickup: 'Local', course: 'Rua', categories: 'Adulto', awards: 'Medalha', regulation: 'https://example.com/reg', notes: 'Info' })).toBe(false);

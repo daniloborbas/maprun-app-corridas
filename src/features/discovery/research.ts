@@ -18,6 +18,17 @@ export interface SourceMatch { source: ResearchSource; score: number; classifica
 export interface FieldResolution { status: FieldResolutionStatus; chosenValue: unknown; confidence: number; supportingSources: ResearchSource[]; conflictingSources: ResearchSource[]; criticalConflict: boolean; }
 export interface ResearchDecision { resolvedEvent: ExtractedRaceEvent; fieldResolutions: Record<string, FieldResolution>; replacements: { field: string; oldValue: unknown; newValue: unknown; resolutionReason: string; supportingSources: ResearchSource[] }[]; unresolvedConflicts: ResearchConflict[]; factualConfidence: number; contentQualityScore: number; autoPublishEligible: boolean; rejectionReasons: string[]; }
 
+/** Formats an event date without applying a timezone to date-only values. */
+export function formatCivilEventDate(value: string | null | undefined): string {
+  const raw = String(value ?? '').trim();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (dateOnly) return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
+  if (!raw) return '';
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(parsed);
+}
+
 /** Normalizes provider confidence to the canonical internal 0–100 scale. */
 export function normalizeConfidenceScore(value: unknown): number | null {
   if (value === null || value === undefined || typeof value !== 'number' || !Number.isFinite(value)) return null;
@@ -174,7 +185,7 @@ export function generateResearchEditorial(event: ExtractedRaceEvent, metadata: R
   const state = usable('state', event.state) as string | null;
   const location = [city, state].filter(Boolean).join(' / ');
   const dateSafe = Boolean(usable('date', event.date));
-  const civilDate = dateSafe && event.date ? (() => { const d = new Date(event.date); if (Number.isNaN(d.getTime())) return event.date; return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d); })() : null;
+  const civilDate = dateSafe ? formatCivilEventDate(event.date) || null : null;
   const startTime = usable('startTime', event.startTime) as string | null;
   const shortDescription = [name, location, civilDate].filter(Boolean).join(' · ');
   const sections = [location && `A prova acontece em ${location}.`, dateSafe ? null : resolutions.date ? 'A data da prova apresenta informações divergentes entre as fontes consultadas e ainda precisa ser confirmada.' : null, startTime && `A largada está prevista para ${startTime}.`, event.distances.length && `Distâncias: ${event.distances.join(', ')}.`, event.registrationUrl && `Inscrições: ${event.registrationUrl}.`, metadata.kit && `Kit: ${metadata.kit}.`, metadata.packetPickup && `Retirada do kit: ${metadata.packetPickup}.`, metadata.course && `Percurso: ${metadata.course}.`].filter(Boolean);
@@ -212,8 +223,11 @@ export async function researchAndEnrichCandidate(candidateId: string, input: Res
   const editorialContainsConflict = criticalConflictValues.some((value) => enriched.shortDescription.includes(value) || enriched.longDescription.includes(value));
   const safeEditorial = editorialContainsConflict ? { ...enriched, shortDescription: '', longDescription: '' } : enriched;
   const audit = auditGeneratedDescription(safeEditorial.longDescription, merged, decision.fieldResolutions);
-  const rejectionReasons = [...new Set([...decision.rejectionReasons, ...(audit.unsupportedClaims.length ? ['unsupported_editorial_claim'] : [])])];
-  const autoPublishEligible = decision.autoPublishEligible && audit.unsupportedClaims.length === 0;
+  const resolvedDate = decision.fieldResolutions.date;
+  const expectedDate = formatCivilEventDate(merged.date);
+  const editorialDateMismatch = resolvedDate?.status === 'confirmed' && Boolean(expectedDate) && [safeEditorial.shortDescription, safeEditorial.longDescription].some((text) => [...text.matchAll(/\b(\d{2}\/\d{2}\/\d{4})\b/g)].some((match) => match[1] !== expectedDate));
+  const rejectionReasons = [...new Set([...decision.rejectionReasons, ...(audit.unsupportedClaims.length ? ['unsupported_editorial_claim'] : []), ...(editorialDateMismatch ? ['editorial_fact_mismatch_date'] : [])])];
+  const autoPublishEligible = decision.autoPublishEligible && audit.unsupportedClaims.length === 0 && !editorialDateMismatch;
   const inputTokens = result.inputTokens ?? 0; const outputTokens = result.outputTokens ?? 0;
   const evidenceTelemetry: Partial<EvidenceFirstTelemetry> = 'evidenceTelemetry' in result ? result.evidenceTelemetry as Partial<EvidenceFirstTelemetry> : {};
   const executionMetadata = options.dryRunExecutionId ? { dryRunExecutionId: options.dryRunExecutionId, executionStartedAt: options.executionStartedAt || new Date(started).toISOString() } : {};
@@ -228,16 +242,18 @@ export async function researchAndEnrichCandidate(candidateId: string, input: Res
   }
   let persistedUpdatedAt: string | null = null;
   let persistedExecutionId: string | null = null;
+  let persistedResearchMetadata: Record<string, unknown> | null = null;
   if (result.status === 'completed') {
     try {
       const readback = client.from('discovery_candidate_enrichments');
       if (typeof (readback as { select?: unknown }).select === 'function') {
-        const query = (readback as unknown as { select: (columns: string) => { eq: (column: string, value: string) => { maybeSingle: () => Promise<{ data?: { updated_at?: string; research_metadata?: { dryRunExecutionId?: string } } | null }> } } }).select('updated_at,research_metadata'); const { data } = await query.eq('candidate_id', candidateId).maybeSingle();
+        const query = (readback as unknown as { select: (columns: string) => { eq: (column: string, value: string) => { maybeSingle: () => Promise<{ data?: { updated_at?: string; research_metadata?: Record<string, unknown> } | null }> } } }).select('updated_at,research_metadata'); const { data } = await query.eq('candidate_id', candidateId).maybeSingle();
         persistedUpdatedAt = data?.updated_at || null;
-        persistedExecutionId = data?.research_metadata?.dryRunExecutionId || null;
+        persistedExecutionId = typeof data?.research_metadata?.dryRunExecutionId === 'string' ? data.research_metadata.dryRunExecutionId : null;
+        persistedResearchMetadata = data?.research_metadata ? (data.research_metadata as Record<string, unknown>) : null;
       }
     } catch { persistedUpdatedAt = null; }
   }
   const persistenceStatus = result.status !== 'completed' ? 'not_persisted' as const : (options.dryRunExecutionId && persistedExecutionId !== options.dryRunExecutionId ? 'stale_result' as const : persistedUpdatedAt ? 'persisted' as const : 'not_persisted' as const);
-  return { status: result.status, candidateId, enrichedEvent: merged, research: enriched, durationMs: Date.now() - started, decision, persistedUpdatedAt, persistenceStatus };
+  return { status: result.status, candidateId, enrichedEvent: merged, research: enriched, researchMetadata: persistenceStatus === 'persisted' ? persistedResearchMetadata : null, durationMs: Date.now() - started, decision, persistedUpdatedAt, persistenceStatus };
 }

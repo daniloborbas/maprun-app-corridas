@@ -18,6 +18,13 @@ describe('event editorial', () => {
     expect(result.description).not.toContain('14 de novembro');
   });
 
+  it('não desloca datas civis para o dia anterior', () => {
+    const result = generateEventEditorialContent({ ...base, startDate: '2026-10-18' });
+    expect(result.description).toContain('18 de outubro de 2026');
+    expect(result.description).not.toContain('17 de outubro de 2026');
+  });
+
+
   it('não inventa horário, preço ou URL', () => {
     const result = generateEventEditorialContent({ ...base });
     expect(result.description).not.toMatch(/às \d{2}:\d{2}|R\$|https?:/);
