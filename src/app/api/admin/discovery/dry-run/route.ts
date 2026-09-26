@@ -13,7 +13,7 @@ import { processDiscoveryCandidate } from '@/features/discovery/candidate-proces
 import type { DiscoverySource } from '@/features/discovery/types';
 import { createResearchDiagnostic, finishResearchDiagnostic, updateResearchDiagnostic } from '@/features/discovery/research-diagnostics';
 import { runSelectiveDryRunBatch, validateBatchCandidateIds, SELECTIVE_BATCH_CHUNK_SIZE } from '@/features/discovery/dry-run-batch';
-import { createPersistedBatch, getPersistedBatch, listPersistedBatchResults, persistBatchChunk } from '@/features/discovery/dry-run-batch-persistence';
+import { createPersistedBatch, getPersistedBatch, listPersistedBatches, listPersistedBatchResults, persistBatchChunk } from '@/features/discovery/dry-run-batch-persistence';
 import { resolveEvidenceFirstResearchFlag } from '@/features/discovery/evidence-first';
 
 const requestSchema = z.object({
@@ -37,7 +37,7 @@ export const maxDuration = 60;
 export async function GET(request: Request) {
   try { await requireAdmin(); } catch { return NextResponse.json({ error: 'Acesso restrito.' }, { status: 403 }); }
   const id = new URL(request.url).searchParams.get('batchExecutionId');
-  if (!id) return NextResponse.json({ error: 'batchExecutionId é obrigatório.' }, { status: 400 });
+  if (!id) return NextResponse.json({ batches: await listPersistedBatches(adminDb()) });
   try {
     const client = adminDb();
     const batch = await getPersistedBatch(client, id);

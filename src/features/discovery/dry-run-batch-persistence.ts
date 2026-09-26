@@ -8,6 +8,7 @@ export async function createPersistedBatch(client: Client, candidateIds: string[
   if (error) throw error; return data;
 }
 export async function getPersistedBatch(client: Client, id: string) { const { data, error } = await client.from('discovery_dry_run_batches').select('*').eq('batch_execution_id', id).maybeSingle(); if (error) throw error; return data; }
+export async function listPersistedBatches(client: Client, limit = 20) { const { data, error } = await client.from('discovery_dry_run_batches').select('*').order('created_at', { ascending: false }).limit(limit); if (error) throw error; return data || []; }
 export async function listPersistedBatchResults(client: Client, id: string) { const { data, error } = await client.from('discovery_dry_run_batch_results').select('*').eq('batch_execution_id', id).order('position'); if (error) throw error; return data || []; }
 export async function persistBatchChunk(client: Client, batch: Record<string, unknown>, items: Array<Record<string, unknown>>, positions: number[]) {
   if (items.length) {
