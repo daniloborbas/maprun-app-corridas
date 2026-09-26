@@ -12,7 +12,7 @@ import { markCandidateProcessing, recoverExpiredProcessingCandidatesByIds } from
 import { processDiscoveryCandidate } from '@/features/discovery/candidate-processor';
 import type { DiscoverySource } from '@/features/discovery/types';
 import { createResearchDiagnostic, finishResearchDiagnostic, updateResearchDiagnostic } from '@/features/discovery/research-diagnostics';
-import { runSelectiveDryRunBatch, validateBatchCandidateIds, SELECTIVE_BATCH_CHUNK_SIZE } from '@/features/discovery/dry-run-batch';
+import { runSelectiveDryRunBatch, validateBatchCandidateIds, SELECTIVE_BATCH_CHUNK_SIZE, isResumableBatch, normalizeResumableBatchStatus } from '@/features/discovery/dry-run-batch';
 import { createPersistedBatch, getPersistedBatch, listPersistedBatches, listPersistedBatchResults, persistBatchChunk } from '@/features/discovery/dry-run-batch-persistence';
 import { resolveEvidenceFirstResearchFlag } from '@/features/discovery/evidence-first';
 
@@ -125,7 +125,12 @@ export async function POST(request: Request) {
     if (!batch) return NextResponse.json({ error: 'Batch não encontrado.' }, { status: 404 });
     if (input.action === 'batch-status') return NextResponse.json({ batch, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId) });
     if (input.action === 'batch-cancel') { if (['completed','failed','cancelled'].includes(batch.status)) return NextResponse.json({ batch }); await adminDb().from('discovery_dry_run_batches').update({ status: 'cancelled', updated_at: new Date().toISOString(), finished_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId); return NextResponse.json({ batch: { ...batch, status: 'cancelled' } }); }
-    if (batch.status === 'completed' || batch.status === 'cancelled') return NextResponse.json({ batch, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId) });
+    if (!isResumableBatch(batch)) return NextResponse.json({ batch, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId) });
+    if (normalizeResumableBatchStatus(batch) !== batch.status) {
+      const { data: normalized, error: normalizeError } = await adminDb().from('discovery_dry_run_batches').update({ status: 'running', updated_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId).select().single();
+      if (normalizeError) return NextResponse.json({ error: 'batch_state_normalization_failed' }, { status: 503 });
+      Object.assign(batch, normalized);
+    }
     const ids = Array.isArray(batch.candidate_ids) ? batch.candidate_ids as string[] : [];
     const start = Number(batch.next_index); const chunk = ids.slice(start, start + Number((batch.configuration as Record<string, unknown>)?.chunkSize || SELECTIVE_BATCH_CHUNK_SIZE));
     if (!chunk.length) return NextResponse.json({ batch, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId) });
@@ -139,7 +144,7 @@ export async function POST(request: Request) {
     const configuredEvidenceFirst = config.evidenceFirstEnabled;
     const report = await runDiscoveryDryRun({ client: adminDb(), candidateIds: chunk, limit: chunk.length, enableResearch: config.enableResearch !== false, researchLimit: chunk.length, concurrency: 1, allowReprocessExtracted: config.allowReprocessExtracted === true, evidenceFirstEnabled: typeof configuredEvidenceFirst === 'boolean' ? configuredEvidenceFirst : undefined, dryRunExecutionId: crypto.randomUUID() });
     if (report.items.length !== chunk.length) {
-      await adminDb().from('discovery_dry_run_batches').update({ status: 'partially_completed', error: 'chunk_cardinality_mismatch', updated_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId);
+      await adminDb().from('discovery_dry_run_batches').update({ status: 'running', error: 'chunk_cardinality_mismatch', updated_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId);
       return NextResponse.json({ error: 'chunk_cardinality_mismatch', expectedCount: chunk.length, returnedCount: report.items.length, batch: await getPersistedBatch(adminDb(), input.batchExecutionId) }, { status: 409 });
     }
     await persistBatchChunk(adminDb(), batch, report.items as unknown as Array<Record<string, unknown>>, chunk.map((_, i) => start + i));

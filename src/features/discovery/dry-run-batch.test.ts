@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_BATCH_SELECTED, checkChunkCardinality, chunkCandidateIds, validateBatchCandidateIds } from './dry-run-batch';
+import { MAX_BATCH_SELECTED, checkChunkCardinality, chunkCandidateIds, validateBatchCandidateIds, isResumableBatch, normalizeResumableBatchStatus } from './dry-run-batch';
 
 describe('selective dry-run batch orchestration', () => {
   it('chunks four and five IDs in pairs', () => {
@@ -27,5 +27,18 @@ describe('selective dry-run batch orchestration', () => {
       const ids = Array.from({ length: size }, (_, i) => `batch-${size}-${i}`);
       expect(validateBatchCandidateIds(ids, ids).validatedCount).toBe(size);
     }
+  });
+  it('keeps a failed chunk resumable without advancing the cursor', () => {
+    const batch = { status: 'running', processed_count: 12, next_index: 12, total_count: 25 };
+    expect(isResumableBatch(batch)).toBe(true);
+    expect(normalizeResumableBatchStatus(batch)).toBe('running');
+  });
+  it('normalizes the legacy partial label only while work remains', () => {
+    const resumable = { status: 'partially_completed', processed_count: 12, next_index: 12, total_count: 25 };
+    expect(isResumableBatch(resumable)).toBe(true);
+    expect(normalizeResumableBatchStatus(resumable)).toBe('running');
+    const terminal = { status: 'partially_completed', processed_count: 25, next_index: 25, total_count: 25 };
+    expect(isResumableBatch(terminal)).toBe(true);
+    expect(normalizeResumableBatchStatus(terminal)).toBe('partially_completed');
   });
 });
