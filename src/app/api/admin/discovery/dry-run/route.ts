@@ -8,7 +8,7 @@ import { listSourcesReadyForCrawl, recordDiscoverySourceFailure, recordDiscovery
 import { getResearchModelConfiguration } from '@/features/discovery/openai-research-provider';
 import { createRaceResearchProvider, ResearchProviderError, sanitizeOpenAIError } from '@/features/discovery/openai-research-provider';
 import { researchAndEnrichCandidate, ResearchPersistenceError, type ResearchInput } from '@/features/discovery/research';
-import { markCandidateProcessing, recoverExpiredProcessingCandidatesByIds } from '@/features/discovery/candidate-repository';
+import { markCandidateProcessing, recoverExpiredProcessingCandidatesByIds, diagnoseDryRunCandidateSelection } from '@/features/discovery/candidate-repository';
 import { processDiscoveryCandidate } from '@/features/discovery/candidate-processor';
 import type { DiscoverySource } from '@/features/discovery/types';
 import { createResearchDiagnostic, finishResearchDiagnostic, updateResearchDiagnostic } from '@/features/discovery/research-diagnostics';
@@ -142,10 +142,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ batch: updated, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId), chunk: { status: 'already_persisted', candidatesCompleted: chunk.length } });
     }
     const configuredEvidenceFirst = config.evidenceFirstEnabled;
+    const beforeRecovery = await diagnoseDryRunCandidateSelection(chunk, config.allowReprocessExtracted === true, adminDb());
+    const expiredProcessingFound = beforeRecovery.filter((item) => item.reason === 'expired_processing_not_recovered').length;
+    const activeLeaseBlocked = beforeRecovery.filter((item) => item.reason === 'active_lease').length;
+    const recovery = await recoverExpiredProcessingCandidatesByIds(chunk, adminDb());
+    console.info('[discovery-batch-chunk] lease recovery', { candidateIds: chunk, expiredProcessingFound, expiredProcessingRecovered: recovery.length, activeLeaseBlocked });
     const report = await runDiscoveryDryRun({ client: adminDb(), candidateIds: chunk, limit: chunk.length, enableResearch: config.enableResearch !== false, researchLimit: chunk.length, concurrency: 1, allowReprocessExtracted: config.allowReprocessExtracted === true, evidenceFirstEnabled: typeof configuredEvidenceFirst === 'boolean' ? configuredEvidenceFirst : undefined, dryRunExecutionId: crypto.randomUUID() });
     if (report.items.length !== chunk.length) {
+      const filteredCandidates = await diagnoseDryRunCandidateSelection(chunk, config.allowReprocessExtracted === true, adminDb());
+      console.info('[discovery-batch-chunk] candidate selection mismatch', { candidateIds: chunk, filteredCandidates });
       await adminDb().from('discovery_dry_run_batches').update({ status: 'running', error: 'chunk_cardinality_mismatch', updated_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId);
-      return NextResponse.json({ error: 'chunk_cardinality_mismatch', expectedCount: chunk.length, returnedCount: report.items.length, batch: await getPersistedBatch(adminDb(), input.batchExecutionId) }, { status: 409 });
+      return NextResponse.json({ error: 'chunk_cardinality_mismatch', expectedCount: chunk.length, returnedCount: report.items.length, filteredCandidates, batch: await getPersistedBatch(adminDb(), input.batchExecutionId) }, { status: 409 });
     }
     await persistBatchChunk(adminDb(), batch, report.items as unknown as Array<Record<string, unknown>>, chunk.map((_, i) => start + i));
     const updated = await getPersistedBatch(adminDb(), input.batchExecutionId); return NextResponse.json({ batch: updated, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId), chunk: report });
