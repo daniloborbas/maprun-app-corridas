@@ -136,7 +136,8 @@ export async function POST(request: Request) {
       const updated = await getPersistedBatch(adminDb(), input.batchExecutionId);
       return NextResponse.json({ batch: updated, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId), chunk: { status: 'already_persisted', candidatesCompleted: chunk.length } });
     }
-    const report = await runDiscoveryDryRun({ client: adminDb(), candidateIds: chunk, limit: chunk.length, enableResearch: config.enableResearch !== false, researchLimit: chunk.length, concurrency: 1, allowReprocessExtracted: config.allowReprocessExtracted === true, dryRunExecutionId: crypto.randomUUID() });
+    const configuredEvidenceFirst = config.evidenceFirstEnabled;
+    const report = await runDiscoveryDryRun({ client: adminDb(), candidateIds: chunk, limit: chunk.length, enableResearch: config.enableResearch !== false, researchLimit: chunk.length, concurrency: 1, allowReprocessExtracted: config.allowReprocessExtracted === true, evidenceFirstEnabled: typeof configuredEvidenceFirst === 'boolean' ? configuredEvidenceFirst : undefined, dryRunExecutionId: crypto.randomUUID() });
     if (report.items.length !== chunk.length) {
       await adminDb().from('discovery_dry_run_batches').update({ status: 'partially_completed', error: 'chunk_cardinality_mismatch', updated_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId);
       return NextResponse.json({ error: 'chunk_cardinality_mismatch', expectedCount: chunk.length, returnedCount: report.items.length, batch: await getPersistedBatch(adminDb(), input.batchExecutionId) }, { status: 409 });
