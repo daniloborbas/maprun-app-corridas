@@ -19,3 +19,20 @@ export function normalizeSupabaseError(error: unknown): NormalizedSupabaseError 
     ...(value && typeof value.statusCode === 'number' ? { statusCode: value.statusCode } : {}),
   };
 }
+
+export function reconciliationErrorResponse(error: unknown) {
+  const reconciliationError = normalizeSupabaseError(error);
+  const safeError = {
+    message: reconciliationError.message === 'Erro desconhecido de persistência.' ? 'unknown_reconciliation_error' : reconciliationError.message,
+    code: reconciliationError.code ?? null,
+    details: reconciliationError.details ?? null,
+    hint: reconciliationError.hint ?? null,
+    status: reconciliationError.status ?? null,
+    statusCode: reconciliationError.statusCode ?? null,
+  };
+  return {
+    error: 'batch_reconciliation_failed' as const,
+    reconciliationError: safeError,
+    status: safeError.status ?? safeError.statusCode ?? 409,
+  };
+}

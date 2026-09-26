@@ -87,22 +87,28 @@ export async function recoverExpiredProcessingCandidatesByIds(ids: string[], cli
 }
 
 export type DryRunSelectionDiagnostic = { candidateId: string; currentStatus: string | null; leaseExpired: boolean | null; reason: 'not_found'|'expired_processing_not_recovered'|'active_lease'|'status_not_eligible' };
-export async function diagnoseDryRunCandidateSelection(ids: string[], allowReprocessExtracted: boolean, client?: SupabaseClient): Promise<DryRunSelectionDiagnostic[]> {
-  if (!ids.length) return [];
+export type DryRunSelectionSnapshot = { requestedCandidateIds: string[]; rowsFound: number; rowsEligible: number; filteredCandidates: DryRunSelectionDiagnostic[] };
+export async function inspectDryRunCandidateSelection(ids: string[], allowReprocessExtracted: boolean, client?: SupabaseClient): Promise<DryRunSelectionSnapshot> {
+  if (!ids.length) return { requestedCandidateIds: [], rowsFound: 0, rowsEligible: 0, filteredCandidates: [] };
   const connection = await connectionOrThrow(client);
   const { data, error } = await connection.from('discovery_candidates').select('id,status,processing_lease_expires_at').in('id', ids);
   if (error) throw new Error('Não foi possível diagnosticar candidatos filtrados.');
-  const byId = new Map((data || []).map((row) => [String(row.id), row as { id: string; status: string; processing_lease_expires_at: string | null }]));
+  const rows = (data || []) as Array<{ id: string; status: string; processing_lease_expires_at: string | null }>;
+  const byId = new Map(rows.map((row) => [String(row.id), row]));
+  const eligible = (status: string) => status === 'discovered' || status === 'failed' || (status === 'extracted' && allowReprocessExtracted);
   const now = Date.now();
-  return ids.reduce<DryRunSelectionDiagnostic[]>((diagnostics, id) => {
+  const filteredCandidates = ids.reduce<DryRunSelectionDiagnostic[]>((diagnostics, id) => {
     const candidate = byId.get(id);
     if (!candidate) { diagnostics.push({ candidateId: id, currentStatus: null, leaseExpired: null, reason: 'not_found' }); return diagnostics; }
     const leaseExpired = !candidate.processing_lease_expires_at || Date.parse(candidate.processing_lease_expires_at) <= now;
     if (candidate.status === 'processing') { diagnostics.push({ candidateId: id, currentStatus: candidate.status, leaseExpired, reason: leaseExpired ? 'expired_processing_not_recovered' : 'active_lease' }); return diagnostics; }
-    if (candidate.status === 'extracted' && allowReprocessExtracted) return diagnostics;
-    if (candidate.status === 'discovered' || candidate.status === 'failed') return diagnostics;
-    diagnostics.push({ candidateId: id, currentStatus: candidate.status, leaseExpired, reason: 'status_not_eligible' }); return diagnostics;
+    if (!eligible(candidate.status)) diagnostics.push({ candidateId: id, currentStatus: candidate.status, leaseExpired, reason: 'status_not_eligible' });
+    return diagnostics;
   }, []);
+  return { requestedCandidateIds: [...ids], rowsFound: rows.length, rowsEligible: ids.length - filteredCandidates.length, filteredCandidates };
+}
+export async function diagnoseDryRunCandidateSelection(ids: string[], allowReprocessExtracted: boolean, client?: SupabaseClient): Promise<DryRunSelectionDiagnostic[]> {
+  return (await inspectDryRunCandidateSelection(ids, allowReprocessExtracted, client)).filteredCandidates;
 }
 
 export async function discoverAndPersistFromSource(source: DiscoverySource, context: DiscoveryProviderContext = {}, client?: SupabaseClient) {
