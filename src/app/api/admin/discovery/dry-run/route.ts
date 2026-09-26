@@ -8,13 +8,14 @@ import { listSourcesReadyForCrawl, recordDiscoverySourceFailure, recordDiscovery
 import { getResearchModelConfiguration } from '@/features/discovery/openai-research-provider';
 import { createRaceResearchProvider, ResearchProviderError, sanitizeOpenAIError } from '@/features/discovery/openai-research-provider';
 import { researchAndEnrichCandidate, ResearchPersistenceError, type ResearchInput } from '@/features/discovery/research';
-import { markCandidateProcessing, recoverExpiredProcessingCandidatesByIds, diagnoseDryRunCandidateSelection } from '@/features/discovery/candidate-repository';
+import { markCandidateProcessing, recoverExpiredProcessingCandidatesByIds, inspectDryRunCandidateSelection } from '@/features/discovery/candidate-repository';
 import { processDiscoveryCandidate } from '@/features/discovery/candidate-processor';
 import type { DiscoverySource } from '@/features/discovery/types';
 import { createResearchDiagnostic, finishResearchDiagnostic, updateResearchDiagnostic } from '@/features/discovery/research-diagnostics';
 import { runSelectiveDryRunBatch, validateBatchCandidateIds, SELECTIVE_BATCH_CHUNK_SIZE, isResumableBatch, normalizeResumableBatchStatus } from '@/features/discovery/dry-run-batch';
 import { createPersistedBatch, getPersistedBatch, listPersistedBatches, listPersistedBatchResults, persistBatchChunk, reconcilePersistedBatchCounters } from '@/features/discovery/dry-run-batch-persistence';
 import { resolveEvidenceFirstResearchFlag } from '@/features/discovery/evidence-first';
+import { normalizeSupabaseError } from '@/features/discovery/normalize-supabase-error';
 
 const requestSchema = z.object({
   action: z.enum(['discover', 'discover-source', 'list-sources', 'dry-run', 'discover-and-dry-run', 'dry-run-selected', 'dry-run-batch-selected', 'dry-run-batch-start', 'process-next-batch-chunk', 'batch-status', 'batch-cancel', 'batch-reconcile', 'research-diagnostic']),
@@ -126,10 +127,10 @@ export async function POST(request: Request) {
     if (input.action === 'batch-status') return NextResponse.json({ batch, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId) });
     if (input.action === 'batch-reconcile') {
       try { const reconciled = await reconcilePersistedBatchCounters(adminDb(), batch); return NextResponse.json(reconciled); }
-      catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'batch_reconciliation_failed' }, { status: 409 }); }
+      catch (error) { const reconciliationError = normalizeSupabaseError(error); console.error(JSON.stringify({ phase: 'batch_reconciliation', batchExecutionId: input.batchExecutionId, ...reconciliationError })); return NextResponse.json({ error: 'batch_reconciliation_failed', reconciliationError }, { status: reconciliationError.status || reconciliationError.statusCode || 409 }); }
     }
     if (input.action === 'batch-cancel') { if (['completed','failed','cancelled'].includes(batch.status)) return NextResponse.json({ batch }); await adminDb().from('discovery_dry_run_batches').update({ status: 'cancelled', updated_at: new Date().toISOString(), finished_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId); return NextResponse.json({ batch: { ...batch, status: 'cancelled' } }); }
-    try { const reconciled = await reconcilePersistedBatchCounters(adminDb(), batch); Object.assign(batch, reconciled.batch); } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'batch_reconciliation_failed' }, { status: 409 }); }
+    try { const reconciled = await reconcilePersistedBatchCounters(adminDb(), batch); Object.assign(batch, reconciled.batch); } catch (error) { const reconciliationError = normalizeSupabaseError(error); console.error(JSON.stringify({ phase: 'batch_reconciliation', batchExecutionId: input.batchExecutionId, ...reconciliationError })); return NextResponse.json({ error: 'batch_reconciliation_failed', reconciliationError }, { status: reconciliationError.status || reconciliationError.statusCode || 409 }); }
     if (!isResumableBatch(batch)) return NextResponse.json({ batch, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId) });
     if (normalizeResumableBatchStatus(batch) !== batch.status) {
       const { data: normalized, error: normalizeError } = await adminDb().from('discovery_dry_run_batches').update({ status: 'running', updated_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId).select().single();
@@ -147,20 +148,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ batch: updated, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId), chunk: { status: 'already_persisted', candidatesCompleted: chunk.length } });
     }
     const configuredEvidenceFirst = config.evidenceFirstEnabled;
-    const beforeRecovery = await diagnoseDryRunCandidateSelection(chunk, config.allowReprocessExtracted === true, adminDb());
-    const expiredProcessingFound = beforeRecovery.filter((item) => item.reason === 'expired_processing_not_recovered').length;
-    const activeLeaseBlocked = beforeRecovery.filter((item) => item.reason === 'active_lease').length;
+    const beforeRecovery = await inspectDryRunCandidateSelection(chunk, config.allowReprocessExtracted === true, adminDb());
+    const expiredProcessingFound = beforeRecovery.filteredCandidates.filter((item) => item.reason === 'expired_processing_not_recovered').length;
+    const activeLeaseBlocked = beforeRecovery.filteredCandidates.filter((item) => item.reason === 'active_lease').length;
     const recovery = await recoverExpiredProcessingCandidatesByIds(chunk, adminDb());
     console.info('[discovery-batch-chunk] lease recovery', { candidateIds: chunk, expiredProcessingFound, expiredProcessingRecovered: recovery.length, activeLeaseBlocked });
+    const afterRecovery = await inspectDryRunCandidateSelection(chunk, config.allowReprocessExtracted === true, adminDb());
+    console.info('[discovery-batch-chunk] selection snapshot', { requestedCandidateIds: chunk, rowsFound: afterRecovery.rowsFound, rowsEligible: afterRecovery.rowsEligible, filteredCandidates: afterRecovery.filteredCandidates });
     const report = await runDiscoveryDryRun({ client: adminDb(), candidateIds: chunk, limit: chunk.length, enableResearch: config.enableResearch !== false, researchLimit: chunk.length, concurrency: 1, allowReprocessExtracted: config.allowReprocessExtracted === true, evidenceFirstEnabled: typeof configuredEvidenceFirst === 'boolean' ? configuredEvidenceFirst : undefined, dryRunExecutionId: crypto.randomUUID() });
+    const selectionDiagnostics = { requestedCandidateIds: chunk, rowsFound: afterRecovery.rowsFound, rowsEligible: afterRecovery.rowsEligible, rowsClaimAttempted: report.candidateSelection.rowsClaimAttempted, rowsClaimed: report.candidateSelection.rowsClaimed, rowsSentToDryRun: report.candidateSelection.rowsSentToDryRun, resultsReturned: report.candidateSelection.resultsReturned, filteredCandidates: afterRecovery.filteredCandidates, expiredProcessingFound, expiredProcessingRecovered: recovery.length, activeLeaseBlocked };
+    console.info('[discovery-batch-chunk] claim diagnostics', selectionDiagnostics);
     if (report.items.length !== chunk.length) {
-      const filteredCandidates = await diagnoseDryRunCandidateSelection(chunk, config.allowReprocessExtracted === true, adminDb());
-      console.info('[discovery-batch-chunk] candidate selection mismatch', { candidateIds: chunk, filteredCandidates });
+      console.info('[discovery-batch-chunk] candidate selection mismatch', selectionDiagnostics);
       await adminDb().from('discovery_dry_run_batches').update({ status: 'running', error: 'chunk_cardinality_mismatch', updated_at: new Date().toISOString() }).eq('batch_execution_id', input.batchExecutionId);
-      return NextResponse.json({ error: 'chunk_cardinality_mismatch', expectedCount: chunk.length, returnedCount: report.items.length, filteredCandidates, batch: await getPersistedBatch(adminDb(), input.batchExecutionId) }, { status: 409 });
+      return NextResponse.json({ error: 'chunk_cardinality_mismatch', expectedCount: chunk.length, returnedCount: report.items.length, filteredCandidates: selectionDiagnostics.filteredCandidates, selectionDiagnostics, batch: await getPersistedBatch(adminDb(), input.batchExecutionId) }, { status: 409 });
     }
     await persistBatchChunk(adminDb(), batch, report.items as unknown as Array<Record<string, unknown>>, chunk.map((_, i) => start + i));
-    const updated = await getPersistedBatch(adminDb(), input.batchExecutionId); return NextResponse.json({ batch: updated, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId), chunk: report });
+    const updated = await getPersistedBatch(adminDb(), input.batchExecutionId); return NextResponse.json({ batch: updated, results: await listPersistedBatchResults(adminDb(), input.batchExecutionId), chunk: report, selectionDiagnostics });
   }
   if (!['dry-run-batch-selected', 'dry-run-batch-start'].includes(input.action) && input.researchLimit !== undefined && input.researchLimit > 10) {
     return NextResponse.json({ error: 'research_limit_exceeded_for_action' }, { status: 400 });
