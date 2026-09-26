@@ -1,5 +1,6 @@
 import 'server-only';
 import type { adminDb } from '@/lib/supabase/admin';
+import { reconcileDryRunBatchCounters } from './dry-run-batch-reconciliation';
 type Client = ReturnType<typeof adminDb>;
 export async function createPersistedBatch(client: Client, candidateIds: string[], configuration: Record<string, unknown>) {
   const id = crypto.randomUUID();
@@ -10,6 +11,13 @@ export async function createPersistedBatch(client: Client, candidateIds: string[
 export async function getPersistedBatch(client: Client, id: string) { const { data, error } = await client.from('discovery_dry_run_batches').select('*').eq('batch_execution_id', id).maybeSingle(); if (error) throw error; return data; }
 export async function listPersistedBatches(client: Client, limit = 20) { const { data, error } = await client.from('discovery_dry_run_batches').select('*').order('created_at', { ascending: false }).limit(limit); if (error) throw error; return data || []; }
 export async function listPersistedBatchResults(client: Client, id: string) { const { data, error } = await client.from('discovery_dry_run_batch_results').select('*').eq('batch_execution_id', id).order('position'); if (error) throw error; return data || []; }
+export async function reconcilePersistedBatchCounters(client: Client, batch: { batch_execution_id: string; total_count: number; status: string }) {
+  const results = await listPersistedBatchResults(client, batch.batch_execution_id);
+  const counters = reconcileDryRunBatchCounters(batch, results);
+  const { data, error } = await client.from('discovery_dry_run_batches').update({ ...counters, updated_at: new Date().toISOString(), finished_at: counters.status === 'running' ? null : new Date().toISOString() }).eq('batch_execution_id', batch.batch_execution_id).select().single();
+  if (error) throw error;
+  return { batch: data, results, counters };
+}
 export async function persistBatchChunk(client: Client, batch: Record<string, unknown>, items: Array<Record<string, unknown>>, positions: number[]) {
   if (items.length) {
     const rows = items.map((item, i) => ({ batch_execution_id: batch.batch_execution_id, candidate_id: item.candidateId, position: positions[i], dry_run_execution_id: item.dryRunExecutionId, status: item.extractionStatus || 'completed', persistence_status: item.persistenceStatus, research_status: item.researchStatus, total_tokens: (item.researchTelemetry as Record<string, unknown> | null)?.totalTokens || null, fallback_used: Boolean((item.researchTelemetry as Record<string, unknown> | null)?.fallbackWebSearchUsed), research_confidence: item.researchConfidence, factual_confidence: null, content_quality: item.contentQualityScore, result: item }));
